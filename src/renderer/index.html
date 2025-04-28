@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI PDF Reader</title>
+  <!-- Load PDF.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script>
+    // Set PDF.js worker path
+    window.pdfjsLib = window['pdfjs-dist/build/pdf'];
+    if (window.pdfjsLib) {
+      console.log('PDF.js loaded successfully');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    } else {
+      console.error('Failed to load PDF.js library');
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+      background-color: #0f2027;
+      color: white;
+    }
+    
+    #root {
+      height: 100%;
+    }
+    
+    /* Remove browser default focus outlines and add custom ones */
+    :focus {
+      outline: none;
+    }
+    
+    button:focus, select:focus {
+      box-shadow: 0 0 0 2px rgba(44, 83, 100, 0.5);
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* IMPROVED HIGHLIGHTING - MUCH BRIGHTER */
+    .textLayer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      opacity: 1.0 !important;
+      line-height: 1.0;
+      user-select: text;
+      mix-blend-mode: normal !important;
+      z-index: 2 !important;
+    }
+
+.textLayer > span {
+  /* hide PDF.js text layer glyphs, let canvas show through */
+  color: transparent !important;
+  /* force uniform metrics */
+  font-family: Arial, sans-serif !important;
+  font-size: 1em !important;
+  line-height: 1.2 !important;
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0 0;
+}
+.textLayer ::selection, ::selection {
+  background: rgba(255,255,0,0.3) !important;
+  color: transparent !important;
+  text-shadow: none !important;
+}
+
+    .textLayer .highlight {
+      margin: -1px;
+      padding: 1px;
+      background-color: #87CEEB !important;
+      border-radius: 3px;
+      opacity: 0.5 !important;
+    }
+
+    .textLayer ::selection, ::selection {
+      background: rgba(135, 206, 235, 0.3) !important;
+      color: transparent !important;
+      text-shadow: none !important;
+    }
+    
+    /* Selection color for all elements */
+    ::selection {
+      background: #87CEEB !important;
+      color: #000000 !important;
+      opacity: 0.5 !important;
+      text-shadow: none !important;
+    }
+    
+    /* Animation keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideIn {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(0); }
+    }
+    
+    @keyframes slideOut {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(100%); }
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* CRITICAL FIX: Apply direct styling to ensure tooltip works */
+    [class*="tooltip"], [style*="tooltip"] {
+      position: fixed !important;
+      z-index: 9999 !important;
+      background-color: rgba(42, 49, 65, 0.95) !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      border-radius: 10px !important;
+      transform: translateX(-50%) !important;
+    }
+    
+    /* Force buttons to be visible and clickable */
+    [class*="tooltip"] button, [style*="tooltip"] button {
+      cursor: pointer !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 10000 !important;
+    }
+  </style>
+  <script>
+    // Fix tooltip positioning and button behavior on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log("Installing PDF Reader fixes...");
+      
+      // Force the tooltip to appear higher
+      document.addEventListener('mouseup', function() {
+        setTimeout(function() {
+          const tooltips = document.querySelectorAll('[style*="tooltip"], .selection-tooltip');
+          
+          tooltips.forEach(function(tooltip) {
+            // Ensure tooltip is positioned well above text
+            if (tooltip.style.top) {
+              const topValue = parseInt(tooltip.style.top);
+              tooltip.style.top = (topValue - 100) + 'px';
+            }
+            
+            // Ensure buttons work
+            const buttons = tooltip.querySelectorAll('button');
+            buttons.forEach(function(button) {
+              const text = button.textContent.trim();
+              
+              // Make close button more reliable
+              if (text === '✕') {
+                button.addEventListener('mousedown', function(e) {
+                  e.stopPropagation();
+                  tooltip.style.display = 'none';
+                }, true);
+              }
+              
+              // Make other buttons more reliable
+              button.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+              }, true);
+            });
+            
+            // Make sure tooltip is visible and clickable
+            tooltip.style.pointerEvents = 'auto';
+            tooltip.style.zIndex = '9999';
+          });
+        }, 100);
+      });
+      
+      console.log("PDF Reader fixes installed");
+    });
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>

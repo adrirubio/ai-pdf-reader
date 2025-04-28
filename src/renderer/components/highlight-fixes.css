@@ -1,0 +1,36 @@
+/* Hide the PDF.js text‐layer glyphs so the canvas text shows through */
+.textLayer > span {
+  color: transparent !important;
+  position: absolute;
+  white-space: pre;
+  /* In case of any fallback, force uniform metrics */
+  font: inherit !important;
+}
+
+/* Wrap only the highlighted spans */
+.textLayer .highlight {
+  position: relative;
+  display: inline-block;
+}
+
+/* Paint a translucent sky blue under the text shape */
+.textLayer .highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgba(135, 206, 235, 0.3);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  border-radius: 0.2em;
+  /* slight z-index so it sits just above the canvas */
+  z-index: -1;
+}
+
+/* Optional: smooth fade-in of new highlights */
+@keyframes highlightFade {
+  from { background-color: rgba(135, 206, 235, 0); }
+  to   { background-color: rgba(135, 206, 235, 0.3); }
+}
+.textLayer .highlight::before {
+  animation: highlightFade 0.3s ease-out;
+}
