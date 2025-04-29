@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'; 
+import React, { useEffect, useRef, useState } from 'react';
 
 const PDFViewer = ({ filePath, onTextSelected }) => {
   const [pdfDocument, setPdfDocument] = useState(null);
@@ -525,7 +525,7 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
           ></div>
         )}
         
-        {/* Selection Tooltip - FIXED IMPLEMENTATION */}
+        {/* Selection Tooltip - NEW CIRCULAR DESIGN */}
         {selectionTooltip.visible && (
           <div 
             ref={tooltipRef}
@@ -535,157 +535,47 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
             style={{
               position: 'fixed',
               left: selectionTooltip.x,
-              top: selectionTooltip.y - 100, // Position well above the text
-              width: '240px',
+              top: selectionTooltip.y - 35, // Closer to text
+              width: '44px',
+              height: '44px',
               backgroundColor: 'rgba(42, 49, 65, 0.95)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '10px',
-              padding: '12px',
+              borderRadius: '50%',
+              padding: '0',
               boxShadow: '0 6px 25px rgba(0, 0, 0, 0.3)',
               color: 'white',
               zIndex: 9999,
               transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
               pointerEvents: 'auto', 
             }}
           >
-            {/* Tooltip Header with Close Button */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '10px',
-            }}>
-              <p style={{ 
-                margin: 0,
-                fontSize: '0.9rem', 
-                color: 'rgba(255, 255, 255, 0.9)',
-              }}>
-                Explain this text using:
-              </p>
-              <button 
-                onClick={handleCloseTooltip}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 10000, // Ensure button is clickable
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            
-            {/* Tooltip Buttons */}
-            <div style={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: '8px', 
-              justifyContent: 'center',
-            }}>
-              {/* Simple Button */}
-              <button
-                onClick={() => handleAskAI('simple')}
-                onMouseDown={(e) => e.stopPropagation()} // Prevent event bubbling
-                style={{
-                  padding: '6px 10px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                  zIndex: 10000, // Ensure button is clickable
-                }}
-                onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-                onMouseLeave={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';}}
-              >
-                Simple
-              </button>
-              
-              {/* ELI5 Button */}
-              <button
-                onClick={() => handleAskAI('eli5')}
-                onMouseDown={(e) => e.stopPropagation()} // Prevent event bubbling
-                style={{
-                  padding: '6px 10px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                  zIndex: 10000, // Ensure button is clickable
-                }}
-                onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-                onMouseLeave={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';}}
-              >
-                Like I'm 5
-              </button>
-              
-              {/* Technical Button */}
-              <button
-                onClick={() => handleAskAI('technical')}
-                onMouseDown={(e) => e.stopPropagation()} // Prevent event bubbling
-                style={{
-                  padding: '6px 10px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                  zIndex: 10000, // Ensure button is clickable
-                }}
-                onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-                onMouseLeave={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';}}
-              >
-                Technical
-              </button>
-              
-              {/* Custom Button */}
-              <button
-                onClick={() => handleAskAI('custom')}
-                onMouseDown={(e) => e.stopPropagation()} // Prevent event bubbling
-                style={{
-                  padding: '6px 10px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                  zIndex: 10000, // Ensure button is clickable
-                }}
-                onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-                onMouseLeave={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';}}
-              >
-                Custom...
-              </button>
-            </div>
-            
-            {/* Tooltip Arrow */}
-            <div style={{
-              position: 'absolute',
-              bottom: '-10px',
-              left: '50%',
-              marginLeft: '-10px',
-              width: '0',
-              height: '0',
-              borderLeft: '10px solid transparent',
-              borderRight: '10px solid transparent',
-              borderTop: '10px solid rgba(42, 49, 65, 0.95)'
-            }}></div>
+            <button
+              style={{
+                width: '100%',
+                height: '100%',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '50%',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAskAI('default');
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
           </div>
         )}
       </div>

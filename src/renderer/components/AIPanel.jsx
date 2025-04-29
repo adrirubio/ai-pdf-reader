@@ -9,14 +9,15 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
   const inputRef = useRef(null);
   const customPromptRef = useRef(null);
 
-  // Initialize chat with selected text and chosen style
+  // Initialize chat with selected text but don't generate response automatically
   useEffect(() => {
     if (selectedText && messages.length === 0) {
       if (selectedStyle === 'custom') {
         setShowCustomPrompt(true);
       } else {
+        // Just add the user message but don't generate a response yet
         addUserMessage(selectedText);
-        generateResponse(selectedText, selectedStyle);
+        // Note: We don't call generateResponse here anymore
       }
     }
   }, [selectedText, selectedStyle]);
@@ -125,7 +126,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
     if (!customPrompt.trim()) return;
     
     setShowCustomPrompt(false);
-    addUserMessage(`${selectedText}\n\n(Custom: ${customPrompt})`);
+    addUserMessage(`${selectedText}\n\n(Custom prompt: ${customPrompt})`);
     generateResponse(selectedText, 'custom');
   };
 
@@ -195,6 +196,111 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
         </button>
       </div>
       
+      {/* Explanation Style Chooser */}
+      {messages.length > 0 && !isTyping && !showCustomPrompt && (
+        <div style={{
+          padding: '15px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          backgroundColor: 'rgba(44, 83, 100, 0.2)',
+        }}>
+          <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem' }}>How would you like me to explain this text?</p>
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '8px', 
+            justifyContent: 'flex-start',
+          }}>
+            <button
+              onClick={() => generateResponse(selectedText, 'simple')}
+              style={{
+                padding: '6px 10px',
+                background: selectedStyle === 'simple' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = selectedStyle === 'simple' 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+            >
+              Simple
+            </button>
+            
+            <button
+              onClick={() => generateResponse(selectedText, 'eli5')}
+              style={{
+                padding: '6px 10px',
+                background: selectedStyle === 'eli5' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = selectedStyle === 'eli5' 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+            >
+              Like I'm 5
+            </button>
+            
+            <button
+              onClick={() => generateResponse(selectedText, 'technical')}
+              style={{
+                padding: '6px 10px',
+                background: selectedStyle === 'technical' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = selectedStyle === 'technical' 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+            >
+              Technical
+            </button>
+            
+            <button
+              onClick={() => setShowCustomPrompt(true)}
+              style={{
+                padding: '6px 10px',
+                background: selectedStyle === 'custom' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = selectedStyle === 'custom' 
+                  ? 'rgba(255, 255, 255, 0.2)' 
+                  : 'rgba(255, 255, 255, 0.1)';
+              }}
+            >
+              Custom...
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Custom Prompt Input (shown only when style is custom) */}
       {showCustomPrompt && (
         <div style={{
@@ -221,27 +327,60 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
               marginBottom: '10px',
             }}
           />
-          <button
-            onClick={handleSubmitCustomPrompt}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: 'rgba(44, 83, 100, 0.8)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(44, 83, 100, 1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(44, 83, 100, 0.8)';
-            }}
-          >
-            Submit
-          </button>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <button
+              onClick={() => setShowCustomPrompt(false)} // Add cancel button
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmitCustomPrompt}
+              disabled={!customPrompt.trim()}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: customPrompt.trim() ? 'rgba(44, 83, 100, 0.8)' : 'rgba(44, 83, 100, 0.3)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: customPrompt.trim() ? 'pointer' : 'not-allowed',
+                fontSize: '0.9rem',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (customPrompt.trim()) {
+                  e.currentTarget.style.backgroundColor = 'rgba(44, 83, 100, 1)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (customPrompt.trim()) {
+                  e.currentTarget.style.backgroundColor = 'rgba(44, 83, 100, 0.8)';
+                }
+              }}
+            >
+              Submit
+            </button>
+          </div>
         </div>
       )}
       

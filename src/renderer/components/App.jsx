@@ -24,15 +24,11 @@ const App = () => {
     }
   };
 
-  const handleTextSelected = (text, style = 'simple') => {
+  const handleTextSelected = (text, style = 'default') => {
     setSelectedText(text);
     setSelectedStyle(style);
     
-    if (style === 'custom') {
-      // Open panel with custom prompt input
-      setCustomPrompt(''); // Reset any previous custom prompt
-    }
-    
+    // Always open panel for any style, including default
     setShowAIPanel(true);
   };
 
