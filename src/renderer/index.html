@@ -154,6 +154,14 @@
       position: relative !important;
       z-index: 10000 !important;
     }
+
+    /* Closed <select> is already set inline;
+       style the dropdown list options to match */
+
+    select.chat-select option {
+      background-color: rgba(44, 83, 100, 0.4) !important;
+      color: white !important;
+    }
   </style>
   <script>
     // Fix tooltip positioning and button behavior on page load

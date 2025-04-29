@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Small UUID helper
+const uuid = () => Math.random().toString(36).substr(2, 9);
+
 const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, onClose }) => {
-  const [messages, setMessages] = useState([]);
+  // --- NEW: multiple chat sessions
+  const [sessions, setSessions] = useState([
+    { id: uuid(), title: 'Chat 1', messages: [] }
+  ]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showCustomPrompt, setShowCustomPrompt] = useState(false);
@@ -11,7 +19,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
 
   // Initialize chat with selected text but don't generate response automatically
   useEffect(() => {
-    if (selectedText && messages.length === 0) {
+    if (selectedText && sessions[currentIdx].messages.length === 0) {
       if (selectedStyle === 'custom') {
         setShowCustomPrompt(true);
       } else {
@@ -27,40 +35,36 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [sessions]);
 
   // Focus on input when chat is ready
   useEffect(() => {
     if (showCustomPrompt && customPromptRef.current) {
       customPromptRef.current.focus();
-    } else if (inputRef.current && messages.length > 0 && !isTyping) {
+    } else if (inputRef.current && sessions[currentIdx].messages.length > 0 && !isTyping) {
       inputRef.current.focus();
     }
-  }, [messages, isTyping, showCustomPrompt]);
+  }, [sessions, isTyping, showCustomPrompt]);
 
   const addUserMessage = (text) => {
-    setMessages(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        type: 'user',
-        content: text,
-        timestamp: new Date().toISOString()
-      }
-    ]);
+    setSessions(s => {
+      const copy = [...s];
+      copy[currentIdx].messages.push({
+        id: Date.now(), type: 'user', content: text, timestamp: new Date().toISOString()
+      });
+      return copy;
+    });
   };
 
   const addAIMessage = (text, error = false) => {
-    setMessages(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        type: 'ai',
-        content: text,
-        timestamp: new Date().toISOString(),
-        isError: error
-      }
-    ]);
+    setSessions(s => {
+      const copy = [...s];
+      copy[currentIdx].messages.push({
+        id: Date.now(), type: 'ai', content: text,
+        timestamp: new Date().toISOString(), isError: error
+      });
+      return copy;
+    });
   };
 
   const generateResponse = async (text, style) => {
@@ -126,6 +130,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
     if (!customPrompt.trim()) return;
     
     setShowCustomPrompt(false);
+    setCustomPrompt('');         // ← clear old prompt
     addUserMessage(`${selectedText}\n\n(Custom prompt: ${customPrompt})`);
     generateResponse(selectedText, 'custom');
   };
@@ -144,7 +149,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
       backgroundColor: 'rgba(15, 32, 39, 0.95)',
       backdropFilter: 'blur(10px)',
     }}>
-      {/* Header */}
+      {/* Header: chat selector + new chat */}
       <div style={{ 
         padding: '15px',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -153,17 +158,70 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
         justifyContent: 'space-between',
         background: 'rgba(44, 83, 100, 0.4)',
       }}>
-        <h3 style={{ 
+        <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
+          {/* New Chat */}
+          <button onClick={() => {
+            const id = uuid();
+            setSessions(sessions.concat({ id, title: `Chat ${sessions.length+1}`, messages: [] }));
+            setCurrentIdx(sessions.length);
+            setCustomPrompt('');
+            setShowCustomPrompt(false);
+          }} style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'white',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '30px',
+            height: '30px',
+            borderRadius: '50%',
+            transition: 'background 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+
+          {/* Chat dropdown (now uses rgba(44,83,100,0.4) background) */}
+          <select
+            className="chat-select"
+            value={sessions[currentIdx].id}
+            onChange={e => {
+              const idx = sessions.findIndex(s => s.id === e.target.value);
+              if (idx >= 0) setCurrentIdx(idx);
+            }}
+            style={{
+              marginRight: '20px',      
+              backgroundColor: 'rgba(44, 83, 100, 0.4)',  // ← updated to match header
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '0.9rem',
+              appearance: 'none',
+            }}
+          >
+            {sessions.map((s,i) => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
+        </div>
+        
+        <h3 style={{
           margin: 0,
           fontWeight: '600',
           fontSize: '1.1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
+          color: 'white',
         }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
           AI Chat Assistant
         </h3>
         
@@ -197,7 +255,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
       </div>
       
       {/* Explanation Style Chooser */}
-      {messages.length > 0 && !isTyping && !showCustomPrompt && (
+      {sessions[currentIdx].messages.length > 0 && !isTyping && !showCustomPrompt && (
         <div style={{
           padding: '15px',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -295,7 +353,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
                   : 'rgba(255, 255, 255, 0.1)';
               }}
             >
-              Custom...
+              Custom…
             </button>
           </div>
         </div>
@@ -396,7 +454,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
           gap: '15px',
         }}
       >
-        {messages.length === 0 && !showCustomPrompt ? (
+        {sessions[currentIdx].messages.length === 0 && !showCustomPrompt ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -424,12 +482,12 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
                 <p>Analyzing text...</p>
               </div>
             ) : (
-              <p>Highlight text in the document to start a conversation</p>
+              <p>Highlight text in the document or ask a question to start a conversation</p>
             )}
           </div>
         ) : (
           <>
-            {messages.map((message) => (
+            {sessions[currentIdx].messages.map((message) => (
               <div 
                 key={message.id}
                 style={{
