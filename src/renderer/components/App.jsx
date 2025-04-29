@@ -1,4 +1,3 @@
-import ReaderWithChat from './ReaderWithChat';
 import React, { useState, useEffect } from 'react';
 import LandingPage from './LandingPage';
 import PDFViewer from './PDFViewer';
@@ -11,6 +10,15 @@ const App = () => {
   const [showLanding, setShowLanding] = useState(true);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [newChatCount, setNewChatCount] = useState(0);
+
+  const handleNewChat = () => {
+    setShowAIPanel(true);
+    setSelectedText('');
+    setSelectedStyle('simple');
+    setCustomPrompt('');
+    setNewChatCount(c => c + 1);
+  };
 
   const handleOpenPDF = async () => {
     try {
@@ -114,23 +122,44 @@ const App = () => {
               {pdfPath ? pdfPath.split('/').pop() : 'No file selected'}
             </div>
 
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-              <div style={{ 
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.1)',
-                marginLeft: '10px',
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginLeft: 'auto',
+              gap: '8px'
+            }}>
+              <span style={{
+                color: 'white',
+                fontSize: '0.95rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                userSelect: 'none'
               }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                Open new chat
+              </span>
+              <button
+                onClick={handleNewChat}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"></circle>
                   <line x1="12" y1="8" x2="12" y2="16"></line>
                   <line x1="8" y1="12" x2="16" y2="12"></line>
                 </svg>
-              </div>
+              </button>
             </div>
           </header>
           
@@ -171,6 +200,7 @@ const App = () => {
                 customPrompt={customPrompt}
                 setCustomPrompt={setCustomPrompt}
                 onClose={handleCloseAIPanel}
+                newChatCount={newChatCount}
               />
             </div>
           </div>

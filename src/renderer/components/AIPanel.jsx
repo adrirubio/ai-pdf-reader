@@ -3,12 +3,20 @@ import React, { useState, useEffect, useRef } from 'react';
 // Small UUID helper
 const uuid = () => Math.random().toString(36).substr(2, 9);
 
-const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, onClose }) => {
+const AIPanel = ({
+  selectedText,
+  selectedStyle,
+  customPrompt,
+  setCustomPrompt,
+  onClose,
+  newChatCount
+}) => {
   // --- NEW: multiple chat sessions
   const [sessions, setSessions] = useState([
     { id: uuid(), title: 'Chat 1', messages: [] }
   ]);
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [showStyleChooser, setShowStyleChooser] = useState(false);
 
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -17,15 +25,14 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
   const inputRef = useRef(null);
   const customPromptRef = useRef(null);
 
-  // Initialize chat with selected text but don't generate response automatically
+  // Always trigger the style-chooser on every new highlight
   useEffect(() => {
-    if (selectedText && sessions[currentIdx].messages.length === 0) {
+    if (selectedText) {
+      setShowStyleChooser(true);
       if (selectedStyle === 'custom') {
         setShowCustomPrompt(true);
       } else {
-        // Just add the user message but don't generate a response yet
         addUserMessage(selectedText);
-        // Note: We don't call generateResponse here anymore
       }
     }
   }, [selectedText, selectedStyle]);
@@ -45,6 +52,20 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
       inputRef.current.focus();
     }
   }, [sessions, isTyping, showCustomPrompt]);
+
+  // whenever parent does "newChatCount++", create a new session
+  useEffect(() => {
+    if (newChatCount < 1) return;
+    setSessions(prev => {
+      const id    = uuid();
+      const next  = [...prev, { id, title: `Chat ${prev.length+1}`, messages: [] }];
+      setCurrentIdx(next.length - 1);
+      return next;
+    });
+    setCustomPrompt('');
+    setShowCustomPrompt(false);
+    setShowStyleChooser(false);
+  }, [newChatCount, setCustomPrompt]);
 
   const addUserMessage = (text) => {
     setSessions(s => {
@@ -130,8 +151,10 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
     if (!customPrompt.trim()) return;
     
     setShowCustomPrompt(false);
-    setCustomPrompt('');         // ← clear old prompt
-    addUserMessage(`${selectedText}\n\n(Custom prompt: ${customPrompt})`);
+    setShowStyleChooser(false);
+    setCustomPrompt('');
+    // only re-show the highlighted text, not the "Custom prompt: ..." footer
+    addUserMessage(selectedText);
     generateResponse(selectedText, 'custom');
   };
 
@@ -139,6 +162,31 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // --- session-remove helpers (now renumber titles)
+  const handleRemoveSession = (idx = currentIdx) => {
+    setSessions(s => {
+      // drop the chosen chat
+      const filtered = s.filter((_, i) => i !== idx);
+      // renumber the remainder: Chat 1, Chat 2, …
+      const renumbered = filtered.map((sess, i) => ({
+        ...sess,
+        title: `Chat ${i + 1}`
+      }));
+      // adjust current index to stay in-bounds
+      setCurrentIdx(ci => Math.max(0, Math.min(renumbered.length - 1, ci)));
+      return renumbered;
+    });
+  };
+
+  // wrap panel-close so empty sessions get purged
+  const handleClose = () => {
+    // only auto-remove if there's more than one session
+    if (sessions.length > 1 && sessions[currentIdx]?.messages.length === 0) {
+      handleRemoveSession(currentIdx);
+    }
+    onClose();
   };
 
   return (
@@ -199,7 +247,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
               if (idx >= 0) setCurrentIdx(idx);
             }}
             style={{
-              marginRight: '20px',      
+              marginRight: '2px',   // tighten up gap
               backgroundColor: 'rgba(44, 83, 100, 0.4)',  // ← updated to match header
               color: 'white',
               border: 'none',
@@ -214,6 +262,27 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
               <option key={s.id} value={s.id}>{s.title}</option>
             ))}
           </select>
+
+          {/* Remove current chat */}
+          <button
+            onClick={() => handleRemoveSession(currentIdx)}
+            disabled={sessions.length <= 1}
+            title="Remove Chat"
+            style={{
+              marginLeft: '2px',     // tuck it in a bit
+              background: 'transparent',
+              border: 'none',
+              color: sessions.length > 1 ? 'white' : 'rgba(255,255,255,0.3)',
+              cursor: sessions.length > 1 ? 'pointer' : 'not-allowed',
+              padding: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+              <line x1="6" y1="18" x2="18" y2="6"></line>
+            </svg>
+          </button>
         </div>
         
         <h3 style={{
@@ -226,7 +295,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
         </h3>
         
         <button
-          onClick={onClose}
+          onClick={handleClose}
           style={{
             background: 'transparent',
             border: 'none',
@@ -255,7 +324,7 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
       </div>
       
       {/* Explanation Style Chooser */}
-      {sessions[currentIdx].messages.length > 0 && !isTyping && !showCustomPrompt && (
+      {showStyleChooser && !isTyping && !showCustomPrompt && (
         <div style={{
           padding: '15px',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -269,7 +338,10 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
             justifyContent: 'flex-start',
           }}>
             <button
-              onClick={() => generateResponse(selectedText, 'simple')}
+              onClick={() => {
+                generateResponse(selectedText, 'simple');
+                setShowStyleChooser(false);
+              }}
               style={{
                 padding: '6px 10px',
                 background: selectedStyle === 'simple' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
@@ -291,7 +363,10 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
             </button>
             
             <button
-              onClick={() => generateResponse(selectedText, 'eli5')}
+              onClick={() => {
+                generateResponse(selectedText, 'eli5');
+                setShowStyleChooser(false);
+              }}
               style={{
                 padding: '6px 10px',
                 background: selectedStyle === 'eli5' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
@@ -313,7 +388,10 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
             </button>
             
             <button
-              onClick={() => generateResponse(selectedText, 'technical')}
+              onClick={() => {
+                generateResponse(selectedText, 'technical');
+                setShowStyleChooser(false);
+              }}
               style={{
                 padding: '6px 10px',
                 background: selectedStyle === 'technical' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
@@ -335,7 +413,10 @@ const AIPanel = ({ selectedText, selectedStyle, customPrompt, setCustomPrompt, o
             </button>
             
             <button
-              onClick={() => setShowCustomPrompt(true)}
+              onClick={() => {
+                setShowCustomPrompt(true);
+                setShowStyleChooser(true);
+              }}
               style={{
                 padding: '6px 10px',
                 background: selectedStyle === 'custom' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',

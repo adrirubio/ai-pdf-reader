@@ -205,10 +205,21 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
     const handleMouseUp = () => {
       const selection = window.getSelection();
       const selectedText = selection.toString().trim();
-      
-      if (selectedText) {
-        handleSelectionChange();
+      if (!selectedText) return;
+
+      // Only show the AI bubble for selections inside the PDF text layer
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        let node = range.startContainer;
+        // if it's a text node, go up to its parent
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+        // if this selection isn't within .textLayer, bail out
+        if (!node.closest('.textLayer')) {
+          return;  // let normal browser underline apply elsewhere
+        }
       }
+
+      handleSelectionChange();
     };
     
     // Hide tooltip when clicking elsewhere
