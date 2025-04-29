@@ -184,7 +184,7 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
               // Position tooltip centered at the middle of the first line
               const x = firstRect.left + (firstRect.width / 2);
               // Position above the text (with extra spacing)
-              const y = firstRect.top - 50;
+              const y = firstRect.top - 56;
               
               console.log('Setting tooltip at position:', x, y);
               
@@ -546,7 +546,7 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
             style={{
               position: 'fixed',
               left: selectionTooltip.x,
-              top: selectionTooltip.y - 35, // Closer to text
+              top: selectionTooltip.y,
               width: '44px',
               height: '44px',
               backgroundColor: 'rgba(42, 49, 65, 0.95)',
