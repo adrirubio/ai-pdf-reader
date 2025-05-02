@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import LandingPage from './LandingPage';
 import PDFViewer from './PDFViewer';
 import AIPanel from './AIPanel';
@@ -11,12 +11,17 @@ const App = () => {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [newChatCount, setNewChatCount] = useState(0);
+  const aiPanelRef = useRef(null);
 
   const handleNewChat = () => {
     setShowAIPanel(true);
     setSelectedText('');
     setSelectedStyle('simple');
     setCustomPrompt('');
+    if (aiPanelRef.current && aiPanelRef.current.switchToEmptyChat) {
+      const switched = aiPanelRef.current.switchToEmptyChat();
+      if (switched) return;
+    }
     setNewChatCount(c => c + 1);
   };
 
@@ -195,6 +200,7 @@ const App = () => {
               boxShadow: '-2px 0 20px rgba(0, 0, 0, 0.25)',
             }}>
               <AIPanel 
+                ref={aiPanelRef}
                 selectedText={selectedText}
                 selectedStyle={selectedStyle}
                 customPrompt={customPrompt}

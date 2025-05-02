@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 // Small UUID helper
 const uuid = () => Math.random().toString(36).substr(2, 9);
 
-const AIPanel = ({
+const AIPanel = forwardRef(({
   selectedText,
   selectedStyle,
   customPrompt,
   setCustomPrompt,
   onClose,
   newChatCount
-}) => {
+}, ref) => {
   // --- NEW: multiple chat sessions
   const [sessions, setSessions] = useState([
     { id: uuid(), title: 'Chat 1', messages: [] }
@@ -57,7 +57,7 @@ const AIPanel = ({
   useEffect(() => {
     if (newChatCount < 1) return;
     setSessions(prev => {
-      const id    = uuid();
+      const id = uuid();
       const next  = [...prev, { id, title: `Chat ${prev.length+1}`, messages: [] }];
       setCurrentIdx(next.length - 1);
       return next;
@@ -189,6 +189,20 @@ const AIPanel = ({
     onClose();
   };
 
+  // Expose switchToEmptyChat to parent via ref
+  useImperativeHandle(ref, () => ({
+    switchToEmptyChat: () => {
+      const idx = sessions.findIndex(s => s.messages.length === 0);
+      if (idx !== -1) {
+        setCurrentIdx(idx);
+        setShowStyleChooser(false);
+        setShowCustomPrompt(false);
+        return true;
+      }
+      return false;
+    }
+  }));
+
   return (
     <div style={{ 
       height: '100%',
@@ -209,11 +223,22 @@ const AIPanel = ({
         <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
           {/* New Chat */}
           <button onClick={() => {
+            // Try to switch to an empty chat first
+            const idx = sessions.findIndex(s => s.messages.length === 0);
+            if (idx !== -1) {
+              setCurrentIdx(idx);
+              setCustomPrompt('');
+              setShowCustomPrompt(false);
+              setShowStyleChooser(false);
+              return;
+            }
+            // Otherwise, create a new chat
             const id = uuid();
             setSessions(sessions.concat({ id, title: `Chat ${sessions.length+1}`, messages: [] }));
             setCurrentIdx(sessions.length);
             setCustomPrompt('');
             setShowCustomPrompt(false);
+            setShowStyleChooser(false);
           }} style={{
             background: 'transparent',
             border: 'none',
@@ -744,6 +769,6 @@ const AIPanel = ({
       </div>
     </div>
   );
-};
+});
 
 export default AIPanel;

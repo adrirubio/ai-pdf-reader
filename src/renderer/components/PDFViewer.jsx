@@ -17,7 +17,7 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
   const containerRef = useRef(null);
   const tooltipRef = useRef(null);
   const selectedTextRef = useRef('');
-  
+
   // Load PDF document when filePath changes
   useEffect(() => {
     if (!filePath) return;
