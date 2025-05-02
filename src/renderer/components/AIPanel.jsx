@@ -153,8 +153,6 @@ const AIPanel = forwardRef(({
     setShowCustomPrompt(false);
     setShowStyleChooser(false);
     setCustomPrompt('');
-    // only re-show the highlighted text, not the "Custom prompt: ..." footer
-    addUserMessage(selectedText);
     generateResponse(selectedText, 'custom');
   };
 
