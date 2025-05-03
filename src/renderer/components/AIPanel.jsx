@@ -559,7 +559,7 @@ const AIPanel = forwardRef(({
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '15px',
+          gap: '18px',
         }}
       >
         {sessions[currentIdx].messages.length === 0 && !showCustomPrompt ? (
@@ -568,7 +568,7 @@ const AIPanel = forwardRef(({
             alignItems: 'center',
             justifyContent: 'center',
             height: '100%',
-            color: 'rgba(255, 255, 255, 0.5)',
+            color: 'rgba(255, 255, 255, 0.6)',
             textAlign: 'center',
             padding: '0 20px',
           }}>
@@ -590,7 +590,19 @@ const AIPanel = forwardRef(({
                 <p>Analyzing text...</p>
               </div>
             ) : (
-              <p>Highlight text in the document or ask a question to start a conversation</p>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '20px',
+              }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <p>Highlight text in the document or ask a question to start a conversation</p>
+              </div>
             )}
           </div>
         ) : (
@@ -599,89 +611,115 @@ const AIPanel = forwardRef(({
               <div 
                 key={message.id}
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignSelf: message.type === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%',
-                  animation: 'fadeIn 0.3s ease-out',
+                  width: '100%',
                 }}
               >
+                {/* Sender label */}
                 <div style={{
-                  background: message.type === 'user' 
-                    ? 'rgba(44, 83, 100, 0.7)' 
-                    : message.isError 
-                      ? 'rgba(178, 34, 34, 0.3)'
-                      : 'rgba(255, 255, 255, 0.1)',
-                  padding: '12px 16px',
-                  borderRadius: message.type === 'user' 
-                    ? '18px 18px 4px 18px' 
-                    : '18px 18px 18px 4px',
-                  color: 'white',
-                  boxShadow: '0 1px 5px rgba(0, 0, 0, 0.1)',
-                  border: message.isError 
-                    ? '1px solid rgba(255, 100, 100, 0.3)'
-                    : '1px solid rgba(255, 255, 255, 0.1)',
-                  whiteSpace: 'pre-line',
-                }}>
-                  {message.content}
-                </div>
-                <div style={{
-                  fontSize: '0.75rem',
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  marginTop: '4px',
-                  padding: '0 8px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  alignSelf: message.type === 'user' ? 'flex-end' : 'flex-start',
+                  marginBottom: '4px',
+                  paddingLeft: '2px',
                 }}>
-                  {message.type === 'ai' && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                    </svg>
-                  )}
-                  {formatTime(message.timestamp)}
+                  <div style={{
+                    color: message.type === 'user' ? '#4f8cb5' : '#c3e9ff',
+                    fontSize: '0.75rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}>
+                    {message.type === 'ai' ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                    )}
+                    {message.type === 'ai' ? 'AI Assistant' : 'You'}
+                  </div>
+                  <div style={{ 
+                    fontSize: '0.7rem',
+                    color: 'rgba(255, 255, 255, 0.4)',
+                    marginLeft: '8px',
+                  }}>
+                    {formatTime(message.timestamp)}
+                  </div>
+                </div>
+                
+                {/* Message content */}
+                <div style={{
+                  background: message.type === 'user' 
+                    ? 'rgba(44, 83, 100, 0.4)' 
+                    : message.isError 
+                      ? 'rgba(178, 34, 34, 0.3)'
+                      : 'rgba(255, 255, 255, 0.05)',
+                  padding: '14px 16px',
+                  borderRadius: '6px',
+                  color: 'white',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+                  fontSize: '0.8rem',
+                  lineHeight: '1.5',
+                  wordWrap: 'break-word',
+                  overflow: 'hidden',
+                  whiteSpace: 'pre-wrap',
+                  fontWeight: '300',
+                }}>
+                  {message.content}
                 </div>
               </div>
             ))}
             
             {isTyping && (
               <div style={{
-                alignSelf: 'flex-start',
-                background: 'rgba(255, 255, 255, 0.1)',
+                width: '100%',
+                background: 'rgba(255, 255, 255, 0.05)',
                 padding: '12px 16px',
-                borderRadius: '18px 18px 18px 4px',
-                display: 'flex',
-                gap: '4px',
+                borderRadius: '6px',
                 animation: 'fadeIn 0.3s ease-out',
-                marginTop: '8px',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
               }}>
                 <div style={{ 
-                  width: '8px', 
-                  height: '8px', 
-                  backgroundColor: 'white', 
-                  borderRadius: '50%',
-                  opacity: 0.7,
-                  animation: 'pulse 1s infinite',
-                }}></div>
-                <div style={{ 
-                  width: '8px', 
-                  height: '8px', 
-                  backgroundColor: 'white', 
-                  borderRadius: '50%',
-                  opacity: 0.7,
-                  animation: 'pulse 1s infinite 0.2s',
-                }}></div>
-                <div style={{ 
-                  width: '8px', 
-                  height: '8px', 
-                  backgroundColor: 'white', 
-                  borderRadius: '50%',
-                  opacity: 0.7,
-                  animation: 'pulse 1s infinite 0.4s',
-                }}></div>
+                  color: '#c3e9ff',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}>
+                  <span style={{ marginRight: '8px' }}>AI is typing</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ 
+                      width: '5px', 
+                      height: '5px', 
+                      backgroundColor: 'currentColor', 
+                      borderRadius: '50%',
+                      opacity: 0.8,
+                      animation: 'pulse 1s infinite',
+                    }}></div>
+                    <div style={{ 
+                      width: '5px', 
+                      height: '5px', 
+                      backgroundColor: 'currentColor', 
+                      borderRadius: '50%',
+                      opacity: 0.8,
+                      animation: 'pulse 1s infinite 0.2s',
+                    }}></div>
+                    <div style={{ 
+                      width: '5px', 
+                      height: '5px', 
+                      backgroundColor: 'currentColor', 
+                      borderRadius: '50%',
+                      opacity: 0.8,
+                      animation: 'pulse 1s infinite 0.4s',
+                    }}></div>
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -690,18 +728,18 @@ const AIPanel = forwardRef(({
       
       {/* Input area */}
       <div style={{ 
-        padding: '15px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-        background: 'rgba(15, 32, 39, 0.8)',
+        padding: '10px 15px 15px',
+        background: 'rgba(15, 32, 39, 0.95)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
       }}>
         <div style={{ 
           display: 'flex',
           alignItems: 'flex-end',
           gap: '10px',
-          background: 'rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '10px 15px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          background: 'rgba(255, 255, 255, 0.06)',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
         }}>
           <textarea
             ref={inputRef}
@@ -716,7 +754,7 @@ const AIPanel = forwardRef(({
               color: 'white',
               resize: 'none',
               outline: 'none',
-              fontSize: '0.95rem',
+              fontSize: '0.8rem',
               lineHeight: '1.4',
               minHeight: '24px',
               maxHeight: '100px',
@@ -732,12 +770,12 @@ const AIPanel = forwardRef(({
             style={{
               background: !inputMessage.trim() || isTyping || showCustomPrompt
                 ? 'rgba(44, 83, 100, 0.3)' 
-                : 'rgba(44, 83, 100, 0.8)',
+                : 'linear-gradient(135deg, #2c5364, #203a43)',
               color: 'white',
               border: 'none',
-              borderRadius: '50%',
-              width: '36px',
-              height: '36px',
+              borderRadius: '6px',
+              width: '34px',
+              height: '34px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -749,16 +787,16 @@ const AIPanel = forwardRef(({
             }}
             onMouseEnter={(e) => {
               if (inputMessage.trim() && !isTyping && !showCustomPrompt) {
-                e.currentTarget.style.background = 'rgba(44, 83, 100, 1)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, #3a7a9e, #2c5364)';
               }
             }}
             onMouseLeave={(e) => {
               if (inputMessage.trim() && !isTyping && !showCustomPrompt) {
-                e.currentTarget.style.background = 'rgba(44, 83, 100, 0.8)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, #2c5364, #203a43)';
               }
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
             </svg>
