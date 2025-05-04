@@ -183,7 +183,11 @@ const App = () => {
             }}>
               <PDFViewer 
                 filePath={pdfPath} 
-                onTextSelected={handleTextSelected} 
+                onTextSelected={handleTextSelected}
+                pdfContentStyle={{
+                  marginLeft: showAIPanel ? '-600px' : '0',
+                  transition: 'margin-left 0.3s ease',
+                }}
               />
             </div>
             
@@ -193,11 +197,12 @@ const App = () => {
               top: 0,
               right: 0,
               bottom: 0,
-              width: '350px',
+              width: '600px', // Increased from 500px to 600px for a wider panel
               transform: showAIPanel ? 'translateX(0)' : 'translateX(100%)',
               transition: 'transform 0.3s ease-in-out',
               zIndex: 100,
               boxShadow: '-2px 0 20px rgba(0, 0, 0, 0.25)',
+              overflow: 'auto'
             }}>
               <AIPanel 
                 ref={aiPanelRef}

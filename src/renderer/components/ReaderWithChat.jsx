@@ -27,7 +27,7 @@ export default function ReaderWithChat({ filePath }) {
         />
       </div>
       <div style={{
-        width: '480px',
+        width: '600px',
         borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
         background: 'linear-gradient(180deg, rgba(15, 32, 39, 0.98) 0%, rgba(32, 58, 67, 0.98) 100%)',
         backdropFilter: 'blur(10px)',

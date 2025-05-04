@@ -99,19 +99,19 @@ const AIPanel = forwardRef(({
       let response;
       switch (style) {
         case 'simple':
-          response = `Here's a simple explanation of what you highlighted:\n\n${text}\n\nIs there anything specific you'd like me to elaborate on?`;
+          response = `Here's a simple explanation of what you highlighted:\n\n${text}`;
           break;
         case 'eli5':
-          response = `Explaining like you're 5 years old:\n\n${text}\n\nDoes that make sense?`;
+          response = `Explaining like you're 5 years old:\n\n${text}`;
           break;
         case 'technical':
-          response = `Technical explanation:\n\n${text}\n\nAny particular aspect you want me to dive deeper into?`;
+          response = `Technical explanation:\n\n${text}`;
           break;
         case 'custom':
-          response = `Custom explanation based on: "${customPrompt}":\n\n${text}\n\nIs this what you were looking for?`;
+          response = `Custom explanation based on: ${customPrompt}:\n\n${text}`;
           break;
         default:
-          response = `About this text:\n\n${text}\n\nAny questions?`;
+          response = `About this text:\n\n${text}`;
       }
       
       addAIMessage(response);
@@ -662,13 +662,11 @@ const AIPanel = forwardRef(({
                   padding: '14px 16px',
                   borderRadius: '6px',
                   color: 'white',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
-                  fontSize: '0.8rem',
+                  fontSize: '0.9rem',
                   lineHeight: '1.5',
                   wordWrap: 'break-word',
-                  overflow: 'hidden',
                   whiteSpace: 'pre-wrap',
-                  fontWeight: '300',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
                 }}>
                   {message.content}
                 </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const PDFViewer = ({ filePath, onTextSelected }) => {
+const PDFViewer = ({ filePath, onTextSelected, pdfContentStyle = {} }) => {
   const [pdfDocument, setPdfDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -162,7 +162,10 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
   useEffect(() => {
     const handleSelectionChange = () => {
       const selection = window.getSelection();
-      const selectedText = selection.toString().trim();
+      // Get raw text, then normalize whitespace
+      const rawSelectedText = selection.toString();
+      // Replace multiple whitespace characters (spaces, tabs, newlines) with a single space
+      const selectedText = rawSelectedText.replace(/\s+/g, ' ').trim();
       
       if (selectedText) {
         // Store selected text for later use
@@ -471,6 +474,7 @@ const PDFViewer = ({ filePath, onTextSelected }) => {
         alignItems: 'flex-start',
         padding: '20px',
         position: 'relative',
+        ...pdfContentStyle,
       }}>
         {loading && !pdfDocument ? (
           <div style={{ 
