@@ -11,31 +11,29 @@ const AIPanel = forwardRef(({
   onClose,
   newChatCount
 }, ref) => {
-  // --- NEW: multiple chat sessions
+  // multiple chat sessions
   const [sessions, setSessions] = useState([
     { id: uuid(), title: 'Chat 1', messages: [] }
   ]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showStyleChooser, setShowStyleChooser] = useState(false);
-
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const chatContainerRef = useRef(null);
   const inputRef = useRef(null);
   const customPromptRef = useRef(null);
+  const [lastSelectedText, setLastSelectedText] = useState('');
 
-  // Always trigger the style-chooser on every new highlight
+  // Effect to handle new text selection
   useEffect(() => {
-    if (selectedText) {
-      setShowStyleChooser(true);
-      if (selectedStyle === 'custom') {
-        setShowCustomPrompt(true);
-      } else {
-        addUserMessage(selectedText);
-      }
+    if (selectedText && selectedText !== lastSelectedText) {
+      setShowCustomPrompt(true);
+      setCustomPrompt('');
+      addUserMessage(selectedText);
+      setLastSelectedText(selectedText);
     }
-  }, [selectedText, selectedStyle]);
+  }, [selectedText]);
 
   // Auto-scroll to bottom of chat when messages change
   useEffect(() => {
@@ -65,6 +63,7 @@ const AIPanel = forwardRef(({
     setCustomPrompt('');
     setShowCustomPrompt(false);
     setShowStyleChooser(false);
+    setLastSelectedText('');
   }, [newChatCount, setCustomPrompt]);
 
   const addUserMessage = (text) => {
@@ -96,23 +95,7 @@ const AIPanel = forwardRef(({
       // In a real implementation, this would call your AI service
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
       
-      let response;
-      switch (style) {
-        case 'simple':
-          response = `Here's a simple explanation of what you highlighted:\n\n${text}`;
-          break;
-        case 'eli5':
-          response = `Explaining like you're 5 years old:\n\n${text}`;
-          break;
-        case 'technical':
-          response = `Technical explanation:\n\n${text}`;
-          break;
-        case 'custom':
-          response = `Custom explanation based on: ${customPrompt}:\n\n${text}`;
-          break;
-        default:
-          response = `About this text:\n\n${text}`;
-      }
+      let response = `Custom explanation based on: ${customPrompt}:\n\n${text}`;
       
       addAIMessage(response);
     } catch (error) {
@@ -143,7 +126,11 @@ const AIPanel = forwardRef(({
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (showCustomPrompt) {
+        handleSubmitCustomPrompt();
+      } else {
+        handleSendMessage();
+      }
     }
   };
 
@@ -151,9 +138,7 @@ const AIPanel = forwardRef(({
     if (!customPrompt.trim()) return;
     
     setShowCustomPrompt(false);
-    setShowStyleChooser(false);
-    setCustomPrompt('');
-    generateResponse(selectedText, 'custom');
+    generateResponse(lastSelectedText, 'custom');
   };
 
   // Format timestamp to readable time
@@ -162,10 +147,16 @@ const AIPanel = forwardRef(({
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // --- session-remove helpers (now renumber titles)
+  // Modified to allow deleting the last chat
   const handleRemoveSession = (idx = currentIdx) => {
     setSessions(s => {
-      // drop the chosen chat
+      // If this is the last chat, create a new empty one instead of preventing deletion
+      if (s.length <= 1) {
+        const id = uuid();
+        return [{ id, title: 'Chat 1', messages: [] }];
+      }
+      
+      // Otherwise, proceed with normal deletion
       const filtered = s.filter((_, i) => i !== idx);
       // renumber the remainder: Chat 1, Chat 2, …
       const renumbered = filtered.map((sess, i) => ({
@@ -289,14 +280,13 @@ const AIPanel = forwardRef(({
           {/* Remove current chat */}
           <button
             onClick={() => handleRemoveSession(currentIdx)}
-            disabled={sessions.length <= 1}
             title="Remove Chat"
             style={{
               marginLeft: '2px',     // tuck it in a bit
               background: 'transparent',
               border: 'none',
-              color: sessions.length > 1 ? 'white' : 'rgba(255,255,255,0.3)',
-              cursor: sessions.length > 1 ? 'pointer' : 'not-allowed',
+              color: 'white',  // Always enabled now
+              cursor: 'pointer',  // Always enabled now
               padding: 0,
             }}
           >
@@ -350,125 +340,8 @@ const AIPanel = forwardRef(({
         </button>
       </div>
       
-      {/* Explanation Style Chooser */}
-      {showStyleChooser && !isTyping && !showCustomPrompt && (
-        <div style={{
-          padding: '15px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          backgroundColor: 'rgba(44, 83, 100, 0.2)',
-        }}>
-          <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem' }}>How would you like me to explain this text?</p>
-          <div style={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            gap: '8px', 
-            justifyContent: 'flex-start',
-          }}>
-            <button
-              onClick={() => {
-                generateResponse(selectedText, 'simple');
-                setShowStyleChooser(false);
-              }}
-              style={{
-                padding: '6px 10px',
-                background: selectedStyle === 'simple' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = selectedStyle === 'simple' 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Simple
-            </button>
-            
-            <button
-              onClick={() => {
-                generateResponse(selectedText, 'eli5');
-                setShowStyleChooser(false);
-              }}
-              style={{
-                padding: '6px 10px',
-                background: selectedStyle === 'eli5' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = selectedStyle === 'eli5' 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Like I'm 5
-            </button>
-            
-            <button
-              onClick={() => {
-                generateResponse(selectedText, 'technical');
-                setShowStyleChooser(false);
-              }}
-              style={{
-                padding: '6px 10px',
-                background: selectedStyle === 'technical' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = selectedStyle === 'technical' 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Technical
-            </button>
-            
-            <button
-              onClick={() => {
-                setShowCustomPrompt(true);
-                setShowStyleChooser(true);
-              }}
-              style={{
-                padding: '6px 10px',
-                background: selectedStyle === 'custom' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';}}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = selectedStyle === 'custom' 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Custom…
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Custom Prompt Input (shown only when style is custom) */}
-      {showCustomPrompt && (
+      {/* Custom Prompt Input (shown only when text is selected and prompt hasn't been submitted yet) */}
+      {showCustomPrompt && selectedText && !isTyping && (
         <div style={{
           padding: '15px',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -479,7 +352,8 @@ const AIPanel = forwardRef(({
             ref={customPromptRef}
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder="E.g., Explain using a cooking analogy..."
+            onKeyDown={handleKeyDown}
+            placeholder="Enter your instructions here..."
             style={{
               width: '100%',
               padding: '10px',
@@ -495,31 +369,10 @@ const AIPanel = forwardRef(({
           />
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             gap: '10px'
           }}>
-            <button
-              onClick={() => setShowCustomPrompt(false)} // Add cancel button
-              style={{
-                padding: '8px 16px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.9rem',
-                transition: 'background 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Cancel
-            </button>
             <button
               onClick={handleSubmitCustomPrompt}
               disabled={!customPrompt.trim()}
@@ -601,7 +454,7 @@ const AIPanel = forwardRef(({
                   <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
                   <line x1="12" y1="17" x2="12.01" y2="17"></line>
                 </svg>
-                <p>Highlight text in the document or ask a question to start a conversation</p>
+                <p>Highlight any part of the document or ask a question to start the conversation</p>
               </div>
             )}
           </div>

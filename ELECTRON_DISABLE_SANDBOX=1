@@ -1,0 +1,7 @@
+Setting up IPC handlers...
+IPC handlers setup complete
+Window is now visible
+dialog:openFile was called
+Selected file: /home/adrian/Documents/attention-is-all-you-need-Paper.pdf
+pdf:readFile was called for: /home/adrian/Documents/attention-is-all-you-need-Paper.pdf
+File read successfully, size: 569417

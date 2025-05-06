@@ -125,24 +125,22 @@ const LandingPage = ({ onOpenPDF }) => {
             {
               icon: (
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
                 </svg>
               ),
-              title: "Explain Like I'm Five",
-              desc: "Get simplified explanations of complex concepts in easy-to-understand language."
+              title: "Custom Explanations",
+              desc: "Control how the AI explains content by providing your own custom instructions."
             },
             {
               icon: (
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10"></line>
-                  <line x1="12" y1="20" x2="12" y2="4"></line>
-                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
               ),
-              title: "Technical Deep Dives",
-              desc: "Expand your knowledge with detailed technical explanations of specific topics."
+              title: "Interactive Chat",
+              desc: "Ask follow-up questions to get more details or clarification on any topic."
             },
             {
               icon: (

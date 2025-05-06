@@ -6,11 +6,7 @@ An AI-enhanced PDF reader that explains highlighted text. Built with Electron an
 
 - Open and display PDF documents
 - Highlight text to get AI-powered explanations
-- Different explanation modes:
-  - Simple explanations
-  - ELI5 (Explain Like I'm 5)
-  - Technical deep dives
-  - Custom prompts
+- Custom instruction input for personalized explanations
 - Chat interface for follow-up questions
 - Cross-platform (Windows, macOS, Linux)
 
