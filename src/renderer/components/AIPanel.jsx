@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 
 // Small UUID helper
 const uuid = () => Math.random().toString(36).substr(2, 9);
@@ -25,13 +25,188 @@ const AIPanel = forwardRef(({
   const customPromptRef = useRef(null);
   const [lastSelectedText, setLastSelectedText] = useState('');
 
+  // Ref to keep track of the current streaming AI message ID and its stream ID (for EXPLAIN)
+  const currentStreamingMessageRef = useRef({ messageId: null, streamId: null });
+
+  // Ref to track the active stream ID for CHAT
+  const activeChatStreamIdRef = useRef(null);
+
+  // --- Callbacks for EXPLAIN stream ---
+  const handleExplainChunk = useCallback((chunk) => {
+    const { streamId: chunkStreamId, type, content, isLastChunk } = chunk;
+    const activeMessageId = currentStreamingMessageRef.current.messageId;
+    const activeStreamId = currentStreamingMessageRef.current.streamId;
+    if (chunkStreamId !== activeStreamId || !activeMessageId) return;
+    setSessions(prevSessions => {
+      const sessionIndexToUpdate = currentIdx;
+      const newSessions = [...prevSessions];
+      const currentSession = newSessions[sessionIndexToUpdate];
+      if (!currentSession) return prevSessions;
+      const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+      if (msgIndex === -1) return prevSessions;
+      const existingMessage = currentSession.messages[msgIndex];
+      let updatedMessage = { ...existingMessage };
+      if (type === 'error') {
+        updatedMessage.content = `Error: ${content}`;
+        updatedMessage.isError = true;
+        setIsTyping(false);
+        currentStreamingMessageRef.current = { messageId: null, streamId: null };
+      } else if (type === 'status') {
+        updatedMessage.content = content;
+      } else if (type === 'content') {
+        const newContent = (existingMessage.content === "⏳ Receiving explanation...")
+          ? content
+          : (existingMessage.content || '') + content;
+        updatedMessage.content = newContent;
+        updatedMessage.isError = false;
+      }
+      currentSession.messages[msgIndex] = updatedMessage;
+      return newSessions;
+    });
+  }, [currentIdx]);
+
+  const handleExplainEnd = useCallback((endedStreamId) => {
+    if (endedStreamId === currentStreamingMessageRef.current.streamId) {
+      setIsTyping(false);
+      currentStreamingMessageRef.current = { messageId: null, streamId: null };
+    }
+  }, []);
+
+  const handleExplainError = useCallback((errorInfo) => {
+    if (errorInfo.streamId === currentStreamingMessageRef.current.streamId) {
+      const activeMessageId = currentStreamingMessageRef.current.messageId;
+      setSessions(prevSessions => {
+        const sessionIndexToUpdate = currentIdx;
+        const newSessions = [...prevSessions];
+        const currentSession = newSessions[sessionIndexToUpdate];
+        if (!currentSession || !activeMessageId) return prevSessions;
+        const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+        if (msgIndex !== -1) {
+          currentSession.messages[msgIndex] = { 
+            ...currentSession.messages[msgIndex], 
+            content: `Error: ${errorInfo.message || 'Unknown error during explanation.'}`, 
+            isError: true 
+          };
+        } else {
+          currentSession.messages.push({ 
+            id: uuid(), type: 'ai', 
+            content: `Error: ${errorInfo.message || 'Unknown error during explanation.'}`, 
+            timestamp: new Date().toISOString(), isError: true 
+          });
+        }
+        return newSessions;
+      });
+      setIsTyping(false);
+      currentStreamingMessageRef.current = { messageId: null, streamId: null };
+    }
+  }, [currentIdx]);
+
+  // --- Callbacks for CHAT stream (NEW IMPLEMENTATION) ---
+  const handleChatChunk = useCallback((chunk) => {
+    const { streamId: chunkStreamId, type, content, isLastChunk } = chunk;
+    const activeMessageId = activeChatStreamIdRef.current?.messageId; // Using a new structure for chat stream ref
+    const activeStreamId = activeChatStreamIdRef.current?.streamId;
+
+    // console.log(`AIPanel ChatChunk: Received chunk for stream ${chunkStreamId}, active stream is ${activeStreamId}, active message is ${activeMessageId}`);
+    // console.log('Chat Chunk content:', chunk);
+
+    if (chunkStreamId !== activeStreamId || !activeMessageId) {
+      // console.log('AIPanel ChatChunk: Mismatched stream or no active message. Ignoring.');
+      return;
+    }
+
+    setSessions(prevSessions => {
+      const sessionIndexToUpdate = currentIdx;
+      const newSessions = [...prevSessions];
+      const currentSession = newSessions[sessionIndexToUpdate];
+
+      if (!currentSession) return prevSessions;
+
+      const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+      if (msgIndex === -1) {
+        // console.warn('AIPanel ChatChunk: AI placeholder message not found for ID:', activeMessageId);
+        return prevSessions; 
+      }
+
+      const existingMessage = currentSession.messages[msgIndex];
+      let updatedMessage = { ...existingMessage };
+
+      if (type === 'error') {
+        updatedMessage.content = `Chat Error: ${content}`;
+        updatedMessage.isError = true;
+        setIsTyping(false);
+        activeChatStreamIdRef.current = null; // Clear chat stream ref
+      } else if (type === 'status') {
+        updatedMessage.content = content; // e.g., "AI is thinking..."
+      } else if (type === 'content') {
+        const newContent = (existingMessage.content === "⏳ AI is thinking...") // Placeholder for chat
+          ? content
+          : (existingMessage.content || '') + content;
+        updatedMessage.content = newContent;
+        updatedMessage.isError = false;
+      }
+      
+      currentSession.messages[msgIndex] = updatedMessage;
+      return newSessions;
+    });
+  }, [currentIdx]);
+
+  const handleChatEnd = useCallback((endedStreamId) => {
+    // console.log(`AIPanel ChatEnd: Stream ${endedStreamId} ended. Active stream: ${activeChatStreamIdRef.current?.streamId}`);
+    if (endedStreamId === activeChatStreamIdRef.current?.streamId) {
+      setIsTyping(false);
+      activeChatStreamIdRef.current = null; // Clear chat stream ref
+    }
+  }, [/* No direct state dependencies other than currentIdx handled by closure */]);
+
+  const handleChatError = useCallback((errorInfo) => {
+    // console.error('AIPanel ChatError:', errorInfo);
+    if (errorInfo.streamId === activeChatStreamIdRef.current?.streamId) {
+      const activeMessageId = activeChatStreamIdRef.current?.messageId;
+      
+      setSessions(prevSessions => {
+        const sessionIndexToUpdate = currentIdx;
+        const newSessions = [...prevSessions];
+        const currentSession = newSessions[sessionIndexToUpdate];
+
+        if (!currentSession || !activeMessageId) return prevSessions;
+
+        const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+        if (msgIndex !== -1) {
+          currentSession.messages[msgIndex] = { 
+            ...currentSession.messages[msgIndex], 
+            content: `Chat Error: ${errorInfo.message || 'Unknown error during chat.'}`, 
+            isError: true 
+          };
+        } else {
+          currentSession.messages.push({ 
+            id: uuid(), type: 'ai', 
+            content: `Chat Error: ${errorInfo.message || 'Unknown error during chat.'}`, 
+            timestamp: new Date().toISOString(), isError: true 
+          });
+        }
+        return newSessions;
+      });
+
+      setIsTyping(false);
+      activeChatStreamIdRef.current = null; // Clear chat stream ref
+    }
+  }, [currentIdx]);
+
   // Effect to handle new text selection
   useEffect(() => {
     if (selectedText && selectedText !== lastSelectedText) {
       setShowCustomPrompt(true);
       setCustomPrompt('');
-      addUserMessage(selectedText);
+      addUserMessageToSession(selectedText);
       setLastSelectedText(selectedText);
+      // Cancel any ongoing explanation stream if user selects new text
+      if (currentStreamingMessageRef.current.streamId) {
+        console.log(`AIPanel: New text selected, cleaning up old stream: ${currentStreamingMessageRef.current.streamId}`);
+        // We don't have a direct "cancel" to send to main, but we can stop listening.
+        // Actual cancellation would require more IPC.
+        currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
+      }
     }
   }, [selectedText]);
 
@@ -66,60 +241,166 @@ const AIPanel = forwardRef(({
     setLastSelectedText('');
   }, [newChatCount, setCustomPrompt]);
 
-  const addUserMessage = (text) => {
+  // --- useEffect for setting up IPC Listeners (UPDATED) ---
+  useEffect(() => {
+    // console.log('AIPanel: Setting up IPC listeners.');
+
+    const unsubExplainChunk = window.electron.onExplainChunk(handleExplainChunk);
+    const unsubExplainEnd = window.electron.onExplainEnd(handleExplainEnd);
+    const unsubExplainError = window.electron.onExplainError(handleExplainError);
+
+    // Add CHAT listeners
+    const unsubChatChunk = window.electron.onChatChunk(handleChatChunk);
+    const unsubChatEnd = window.electron.onChatEnd(handleChatEnd);
+    const unsubChatError = window.electron.onChatError(handleChatError);
+
+    return () => {
+      // console.log('AIPanel: Cleaning up IPC listeners.');
+      if (unsubExplainChunk) unsubExplainChunk();
+      if (unsubExplainEnd) unsubExplainEnd();
+      if (unsubExplainError) unsubExplainError();
+
+      if (unsubChatChunk) unsubChatChunk();
+      if (unsubChatEnd) unsubChatEnd();
+      if (unsubChatError) unsubChatError();
+    };
+  }, [handleExplainChunk, handleExplainEnd, handleExplainError, handleChatChunk, handleChatEnd, handleChatError]);
+
+  const addUserMessageToSession = (text, sessionIndex = currentIdx) => {
+    const newMessageId = uuid();
     setSessions(s => {
       const copy = [...s];
-      copy[currentIdx].messages.push({
-        id: Date.now(), type: 'user', content: text, timestamp: new Date().toISOString()
+      if (!copy[sessionIndex]) {
+        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [] };
+      }
+      copy[sessionIndex].messages.push({
+        id: newMessageId, type: 'user', content: text, timestamp: new Date().toISOString()
       });
       return copy;
     });
+    return newMessageId;
   };
 
-  const addAIMessage = (text, error = false) => {
+  const addAIMessageToSession = (text, error = false, sessionIndex = currentIdx, messageIdToUse = null) => {
+    const newMessageId = messageIdToUse || uuid();
     setSessions(s => {
       const copy = [...s];
-      copy[currentIdx].messages.push({
-        id: Date.now(), type: 'ai', content: text,
-        timestamp: new Date().toISOString(), isError: error
-      });
+      if (!copy[sessionIndex]) {
+        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [] };
+      }
+      // If it's an update to an existing streaming message, find and update
+      const existingMsg = messageIdToUse ? copy[sessionIndex].messages.find(m => m.id === messageIdToUse) : null;
+      if (existingMsg) {
+        existingMsg.content = text; // Replace content (or append if streaming logic is here)
+        existingMsg.isError = error;
+      } else {
+        copy[sessionIndex].messages.push({
+          id: newMessageId, type: 'ai', content: text,
+          timestamp: new Date().toISOString(), isError: error
+        });
+      }
       return copy;
     });
+    return newMessageId;
   };
 
-  const generateResponse = async (text, style) => {
-    setIsTyping(true);
-    
-    try {
-      // For now, just echo the input with some formatting based on style
-      // In a real implementation, this would call your AI service
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
-      
-      let response = `Custom explanation based on: ${customPrompt}:\n\n${text}`;
-      
-      addAIMessage(response);
-    } catch (error) {
-      console.error('Error generating response:', error);
-      addAIMessage('Sorry, I encountered an error while analyzing this text. Please try again.', true);
-    } finally {
-      setIsTyping(false);
+  const generateInitialExplanation = async (textForExplanation, explanationStylePrompt) => {
+    if (!textForExplanation || !explanationStylePrompt) {
+      console.warn("Text for explanation or style prompt is missing.");
+      addAIMessageToSession("Could not generate explanation: missing text or instructions.", true);
+      return;
     }
+    
+    const currentSessionMessages = sessions[currentIdx]?.messages || [];
+    if (currentSessionMessages.length === 0 || currentSessionMessages[currentSessionMessages.length -1]?.content !== textForExplanation) {
+        addUserMessageToSession(`Explaining: "${textForExplanation.substring(0,100)}..."`);
+    }
+
+    const placeholderMessageId = uuid();
+    console.log(`AIPanel generateInitialExplanation: placeholderMessageId generated for AI msg: "${placeholderMessageId}"`);
+    addAIMessageToSession("⏳ Receiving explanation...", false, currentIdx, placeholderMessageId); 
+
+    const currentStreamId = uuid(); 
+    
+    // Directly assign values
+    currentStreamingMessageRef.current.messageId = placeholderMessageId;
+    currentStreamingMessageRef.current.streamId = currentStreamId;
+    
+    console.log(`AIPanel generateInitialExplanation: currentStreamingMessageRef SET TO:`, JSON.stringify(currentStreamingMessageRef.current));
+
+    setIsTyping(true);
+    setShowCustomPrompt(false);
+
+    console.log(`AIPanel: Calling window.electron.aiExplain with streamId: ${currentStreamId}, text: "${textForExplanation.substring(0,50)}...", style: "${explanationStylePrompt}"`);
+    window.electron.aiExplain(textForExplanation, explanationStylePrompt, currentStreamId);
+
+    // The response and any errors will come via the 'onExplainChunk' and 'onExplainError' listeners.
+    // setIsTyping(false) will be handled by the last chunk or error handler.
   };
 
+  // MODIFIED handleSendMessage to use streaming
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
     
-    addUserMessage(inputMessage);
-    const message = inputMessage;
+    const userMessageContent = inputMessage;
+    addUserMessageToSession(userMessageContent); // Adds user message to current session
     setInputMessage('');
     
-    // For this simple echo version, just respond with the user's message
     setIsTyping(true);
+
+    // Abort any ongoing explanation stream if user sends a chat message
+    if (currentStreamingMessageRef.current.streamId) {
+        // console.log("AIPanel: User sending chat, aborting active explanation stream:", currentStreamingMessageRef.current.streamId);
+        currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
+    }
+    // Abort any previous chat stream
+    if (activeChatStreamIdRef.current?.streamId) {
+        // console.log("AIPanel: User sending new chat, aborting previous chat stream:", activeChatStreamIdRef.current.streamId);
+        activeChatStreamIdRef.current = null;
+    }
+
+    const newChatStreamId = uuid();
+    const placeholderAiMessageId = uuid(); // This ID will be for the placeholder in the UI
+
+    // Store both the placeholder's UI ID and the stream's ID for the backend
+    activeChatStreamIdRef.current = { messageId: placeholderAiMessageId, streamId: newChatStreamId };
+
+    // Add AI placeholder message
+    addAIMessageToSession("⏳ AI is thinking...", false, currentIdx, placeholderAiMessageId);
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
-      addAIMessage(`You said: "${message}"\n\nIn a real implementation, this would be a proper AI response.`);
-    } finally {
+      const messagesForBackend = sessions[currentIdx].messages
+        .filter(msg => msg.id !== placeholderAiMessageId) // Don't send the new placeholder itself
+        .map(msg => ({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+
+      // console.log('AIPanel: Calling window.electron.aiChatStream with streamId:', newChatStreamId, 'messagesForBackend:', JSON.stringify(messagesForBackend, null, 2));
+      window.electron.aiChatStream(messagesForBackend, newChatStreamId);
+      // Response will come via onChatChunk, onChatEnd, onChatError
+      // setIsTyping(false) will be handled by onChatEnd or onChatError
+
+    } catch (error) {
+      console.error('AIPanel: Exception calling aiChatStream setup:', error);
+      // Update the placeholder to show an error
+      setSessions(prevSessions => {
+        const sessionIndexToUpdate = currentIdx;
+        const newSessions = [...prevSessions];
+        const currentSession = newSessions[sessionIndexToUpdate];
+        if (!currentSession) return prevSessions;
+        const msgIndex = currentSession.messages.findIndex(m => m.id === placeholderAiMessageId && m.type === 'ai');
+        if (msgIndex !== -1) {
+          currentSession.messages[msgIndex] = {
+            ...currentSession.messages[msgIndex],
+            content: 'Sorry, I encountered an error starting the chat. Please try again.',
+            isError: true,
+          };
+        }
+        return newSessions;
+      });
       setIsTyping(false);
+      activeChatStreamIdRef.current = null; // Clear ref on error
     }
   };
 
@@ -135,10 +416,8 @@ const AIPanel = forwardRef(({
   };
 
   const handleSubmitCustomPrompt = () => {
-    if (!customPrompt.trim()) return;
-    
-    setShowCustomPrompt(false);
-    generateResponse(lastSelectedText, 'custom');
+    if (!customPrompt.trim() || !lastSelectedText) return;
+    generateInitialExplanation(lastSelectedText, customPrompt);
   };
 
   // Format timestamp to readable time
@@ -150,28 +429,27 @@ const AIPanel = forwardRef(({
   // Modified to allow deleting the last chat
   const handleRemoveSession = (idx = currentIdx) => {
     setSessions(s => {
-      // If this is the last chat, create a new empty one instead of preventing deletion
       if (s.length <= 1) {
         const id = uuid();
+        setCurrentIdx(0);
         return [{ id, title: 'Chat 1', messages: [] }];
       }
       
-      // Otherwise, proceed with normal deletion
       const filtered = s.filter((_, i) => i !== idx);
-      // renumber the remainder: Chat 1, Chat 2, …
       const renumbered = filtered.map((sess, i) => ({
         ...sess,
         title: `Chat ${i + 1}`
       }));
-      // adjust current index to stay in-bounds
-      setCurrentIdx(ci => Math.max(0, Math.min(renumbered.length - 1, ci)));
+      setCurrentIdx(ci => {
+          const newIndex = Math.min(Math.max(0, ci === idx ? idx -1 : ci), renumbered.length - 1);
+          return newIndex < 0 ? 0 : newIndex;
+      });
       return renumbered;
     });
   };
 
   // wrap panel-close so empty sessions get purged
   const handleClose = () => {
-    // only auto-remove if there's more than one session
     if (sessions.length > 1 && sessions[currentIdx]?.messages.length === 0) {
       handleRemoveSession(currentIdx);
     }
@@ -212,22 +490,19 @@ const AIPanel = forwardRef(({
         <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
           {/* New Chat */}
           <button onClick={() => {
-            // Try to switch to an empty chat first
+            if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } // Clear stream on new chat
             const idx = sessions.findIndex(s => s.messages.length === 0);
             if (idx !== -1) {
               setCurrentIdx(idx);
               setCustomPrompt('');
               setShowCustomPrompt(false);
-              setShowStyleChooser(false);
               return;
             }
-            // Otherwise, create a new chat
             const id = uuid();
             setSessions(sessions.concat({ id, title: `Chat ${sessions.length+1}`, messages: [] }));
             setCurrentIdx(sessions.length);
             setCustomPrompt('');
             setShowCustomPrompt(false);
-            setShowStyleChooser(false);
           }} style={{
             background: 'transparent',
             border: 'none',
@@ -255,8 +530,9 @@ const AIPanel = forwardRef(({
           {/* Chat dropdown (now uses rgba(44,83,100,0.4) background) */}
           <select
             className="chat-select"
-            value={sessions[currentIdx].id}
+            value={sessions[currentIdx]?.id || ''}
             onChange={e => {
+              if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; }
               const idx = sessions.findIndex(s => s.id === e.target.value);
               if (idx >= 0) setCurrentIdx(idx);
             }}
@@ -279,7 +555,7 @@ const AIPanel = forwardRef(({
 
           {/* Remove current chat */}
           <button
-            onClick={() => handleRemoveSession(currentIdx)}
+            onClick={() => { if (currentStreamingMessageRef.current.streamId && sessions[currentIdx]?.id === sessions.find((s,i)=>i === currentIdx)?.id ) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleRemoveSession(currentIdx);}}
             title="Remove Chat"
             style={{
               marginLeft: '2px',     // tuck it in a bit
@@ -312,7 +588,7 @@ const AIPanel = forwardRef(({
         </h3>
         
         <button
-          onClick={handleClose}
+          onClick={()=>{ if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleClose();}}
           style={{
             background: 'transparent',
             border: 'none',
@@ -415,7 +691,7 @@ const AIPanel = forwardRef(({
           gap: '18px',
         }}
       >
-        {sessions[currentIdx].messages.length === 0 && !showCustomPrompt ? (
+        {sessions[currentIdx]?.messages.length === 0 && !showCustomPrompt ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -460,7 +736,7 @@ const AIPanel = forwardRef(({
           </div>
         ) : (
           <>
-            {sessions[currentIdx].messages.map((message) => (
+            {sessions[currentIdx]?.messages.map((message) => (
               <div 
                 key={message.id}
                 style={{
@@ -521,12 +797,12 @@ const AIPanel = forwardRef(({
                   whiteSpace: 'pre-wrap',
                   fontFamily: 'system-ui, -apple-system, sans-serif',
                 }}>
-                  {message.content}
+                  {message.content}{message.type === 'ai' && isTyping && currentStreamingMessageRef.current.messageId === message.id ? '...' : ''}
                 </div>
               </div>
             ))}
             
-            {isTyping && (
+            {isTyping && !sessions[currentIdx]?.messages.find(m => m.id === currentStreamingMessageRef.current.messageId && m.type ==='ai') && (
               <div style={{
                 width: '100%',
                 background: 'rgba(255, 255, 255, 0.05)',
@@ -545,30 +821,7 @@ const AIPanel = forwardRef(({
                 }}>
                   <span style={{ marginRight: '8px' }}>AI is typing</span>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    <div style={{ 
-                      width: '5px', 
-                      height: '5px', 
-                      backgroundColor: 'currentColor', 
-                      borderRadius: '50%',
-                      opacity: 0.8,
-                      animation: 'pulse 1s infinite',
-                    }}></div>
-                    <div style={{ 
-                      width: '5px', 
-                      height: '5px', 
-                      backgroundColor: 'currentColor', 
-                      borderRadius: '50%',
-                      opacity: 0.8,
-                      animation: 'pulse 1s infinite 0.2s',
-                    }}></div>
-                    <div style={{ 
-                      width: '5px', 
-                      height: '5px', 
-                      backgroundColor: 'currentColor', 
-                      borderRadius: '50%',
-                      opacity: 0.8,
-                      animation: 'pulse 1s infinite 0.4s',
-                    }}></div>
+                    {[0,1,2].map(i => <div key={i} style={{ width: '5px', height: '5px', backgroundColor: 'currentColor', borderRadius: '50%', opacity: 0.8, animation: `pulse 1s infinite ${i * 0.2}s`}}></div>)}
                   </div>
                 </div>
               </div>
