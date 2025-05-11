@@ -12,6 +12,7 @@ const App = () => {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [newChatCount, setNewChatCount] = useState(0);
+  const [fullPdfText, setFullPdfText] = useState('');
   const aiPanelRef = useRef(null);
   const pdfViewerRef = useRef(null);
 
@@ -55,6 +56,7 @@ const App = () => {
     setSelectedLocation(null);
     setShowAIPanel(false);
     setShowLanding(true);
+    setFullPdfText('');
   };
 
   const handleCloseAIPanel = () => {
@@ -76,6 +78,14 @@ const App = () => {
       } else {
         console.warn('handleGoToHighlight called without targetLocation or PDFViewer ref');
       }
+    }
+  };
+
+  const handleRemoveHighlightById = (highlightId) => {
+    if (pdfViewerRef.current && typeof pdfViewerRef.current.removeHighlight === 'function') {
+      pdfViewerRef.current.removeHighlight(highlightId);
+    } else {
+      console.warn('PDFViewer ref does not have removeHighlight method or ref is not set');
     }
   };
 
@@ -208,6 +218,7 @@ const App = () => {
                 ref={pdfViewerRef}
                 filePath={pdfPath} 
                 onTextSelected={handleTextSelected}
+                onFullTextExtracted={setFullPdfText}
                 pdfContentStyle={{
                   marginLeft: showAIPanel ? '-600px' : '0',
                   transition: 'margin-left 0.3s ease',
@@ -215,6 +226,7 @@ const App = () => {
                 setCustomPrompt={setCustomPrompt}
                 onClose={handleCloseAIPanel}
                 newChatCount={newChatCount}
+                fullPdfText={fullPdfText}
                 onGoToHighlight={handleGoToHighlight}
               />
             </div>
@@ -240,8 +252,10 @@ const App = () => {
                 setCustomPrompt={setCustomPrompt}
                 onClose={handleCloseAIPanel}
                 newChatCount={newChatCount}
+                fullPdfText={fullPdfText}
                 onGoToHighlight={handleGoToHighlight}
                 selectedLocation={selectedLocation}
+                onRemoveHighlight={handleRemoveHighlightById}
               />
             </div>
           </div>

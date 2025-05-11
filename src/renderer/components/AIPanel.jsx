@@ -11,11 +11,13 @@ const AIPanel = forwardRef(({
   onClose,
   newChatCount,
   onGoToHighlight,
-  selectedLocation
+  selectedLocation,
+  onRemoveHighlight,
+  fullPdfText
 }, ref) => {
   // multiple chat sessions
   const [sessions, setSessions] = useState([
-    { id: uuid(), title: 'Chat 1', messages: [] }
+    { id: uuid(), title: 'Chat 1', messages: [], highlightId: null }
   ]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showStyleChooser, setShowStyleChooser] = useState(false);
@@ -25,6 +27,10 @@ const AIPanel = forwardRef(({
   const chatContainerRef = useRef(null);
   const inputRef = useRef(null);
   const [lastSelectedText, setLastSelectedText] = useState('');
+
+  // State for PDF context inclusion prompt
+  const [showPdfContextPrompt, setShowPdfContextPrompt] = useState(false);
+  const [userChoseToIncludeContext, setUserChoseToIncludeContext] = useState(false);
 
   // Ref to keep track of the current streaming AI message ID and its stream ID (for EXPLAIN)
   const currentStreamingMessageRef = useRef({ messageId: null, streamId: null });
@@ -233,7 +239,7 @@ const AIPanel = forwardRef(({
     if (newChatCount < 1) return;
     setSessions(prev => {
       const id = uuid();
-      const next  = [...prev, { id, title: `Chat ${prev.length+1}`, messages: [] }];
+      const next  = [...prev, { id, title: `Chat ${prev.length+1}`, messages: [], highlightId: null }];
       setCurrentIdx(next.length - 1);
       return next;
     });
@@ -273,7 +279,7 @@ const AIPanel = forwardRef(({
     setSessions(s => {
       const copy = [...s];
       if (!copy[sessionIndex]) {
-        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [] };
+        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [], highlightId: null };
       }
 
       let messageToAdd;
@@ -308,7 +314,7 @@ const AIPanel = forwardRef(({
     setSessions(s => {
       const copy = [...s];
       if (!copy[sessionIndex]) {
-        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [] };
+        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [], highlightId: null };
       }
       // If it's an update to an existing streaming message, find and update
       const existingMsg = messageIdToUse ? copy[sessionIndex].messages.find(m => m.id === messageIdToUse) : null;
@@ -331,6 +337,18 @@ const AIPanel = forwardRef(({
       console.warn("Text for explanation or style prompt is missing.");
       addAIMessageToSession("Could not generate explanation: missing text or instructions.", true);
       return;
+    }
+    
+    // Associate highlightId with the current session
+    if (selectedLocation && selectedLocation.id) {
+      setSessions(prevSessions => {
+        const newSessions = [...prevSessions];
+        // Ensure currentIdx is valid and session exists
+        if (newSessions[currentIdx]) {
+          newSessions[currentIdx].highlightId = selectedLocation.id;
+        }
+        return newSessions;
+      });
     }
     
     const userMessageObject = {
@@ -365,64 +383,113 @@ const AIPanel = forwardRef(({
 
   // MODIFIED handleSendMessage to use streaming
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() && !userChoseToIncludeContext) return; // Ensure there's input or context to send
     
-    const userMessageContent = inputMessage;
-    addUserMessageToSession(userMessageContent); // Adds user message to current session
+    const originalUserQuery = inputMessage.trim();
+    let contentForBackend = originalUserQuery;
+    let contentForUI = originalUserQuery;
+
+    const currentSessionFromState = sessions[currentIdx];
+    const currentMessagesFromState = currentSessionFromState?.messages || [];
+    const isFirstUserMessageInLogic = currentMessagesFromState.filter(m => m.type === 'user').length === 0;
+
+    if (userChoseToIncludeContext && fullPdfText && isFirstUserMessageInLogic) {
+      const backendContextPrefix = `Context from PDF:\n"""${fullPdfText}"""\n\n`;
+      const uiContextMessage = `[Full PDF context included]`;
+
+      if (originalUserQuery) {
+        contentForBackend = `${backendContextPrefix}My question:\n${originalUserQuery}`;
+        contentForUI = `${uiContextMessage}\n\nMy question:\n${originalUserQuery}`;
+      } else {
+        contentForBackend = `${backendContextPrefix}What are the key points of the above text?`;
+        contentForUI = `${uiContextMessage}\n\nAsking about key points of the PDF.`;
+      }
+      setUserChoseToIncludeContext(false); // Reset for next message
+      setShowPdfContextPrompt(false); // Hide prompt after use
+    }
+
+    if (!contentForBackend && !contentForUI) { // Should only happen if both are empty initially and context wasn't added.
+      console.warn("handleSendMessage: No content for backend or UI.");
+      return; 
+    }
+
+    // This is the user message object that will be part of the array sent to the backend
+    const newUserMessageForBackend = { role: 'user', content: contentForBackend };
+
+    // Prepare the full list of messages to send to the backend *before* updating React state for the UI
+    const previousMessagesForBackend = currentMessagesFromState
+      .filter(msg => (msg.type === 'user' || msg.type === 'ai') && msg.content !== "⏳ AI is thinking...")
+      .map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content // These are already UI-formatted; if one was a [Full PDF context...] it will be sent as such.
+                            // This is generally fine as history messages are just context for the AI.
+      }));
+    
+    const messagesToSendToBackend = [...previousMessagesForBackend, newUserMessageForBackend];
+
+    // Now, update the React state for the UI.
+    const newUserMessageForUI_object = {
+        id: uuid(), 
+        type: 'user', 
+        content: contentForUI, // Use the UI-specific content here
+        timestamp: new Date().toISOString()
+    };
+    const placeholderAiMessageId = uuid();
+
+    setSessions(s => {
+        const sessionsCopy = [...s];
+        const targetSession = sessionsCopy[currentIdx];
+        if (targetSession) {
+            targetSession.messages.push(newUserMessageForUI_object); // Add user's message for UI
+            targetSession.messages.push({ // Add AI placeholder for UI
+                id: placeholderAiMessageId, type: 'ai', content: "⏳ AI is thinking...",
+                timestamp: new Date().toISOString(), isError: false
+            });
+        }
+        return sessionsCopy;
+    });
+    
     setInputMessage('');
-    
     setIsTyping(true);
 
     // Abort any ongoing explanation stream if user sends a chat message
     if (currentStreamingMessageRef.current.streamId) {
-        // console.log("AIPanel: User sending chat, aborting active explanation stream:", currentStreamingMessageRef.current.streamId);
         currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
     }
     // Abort any previous chat stream
     if (activeChatStreamIdRef.current?.streamId) {
-        // console.log("AIPanel: User sending new chat, aborting previous chat stream:", activeChatStreamIdRef.current.streamId);
         activeChatStreamIdRef.current = null;
     }
 
     const newChatStreamId = uuid();
-    const placeholderAiMessageId = uuid(); // This ID will be for the placeholder in the UI
-
-    // Store both the placeholder's UI ID and the stream's ID for the backend
     activeChatStreamIdRef.current = { messageId: placeholderAiMessageId, streamId: newChatStreamId };
 
-    // Add AI placeholder message
-    addAIMessageToSession("⏳ AI is thinking...", false, currentIdx, placeholderAiMessageId);
+    // Log what is being sent to the main process
+    console.log('AIPanel.jsx: Sending messages to main process:', JSON.stringify(messagesToSendToBackend, null, 2));
+
+    if (messagesToSendToBackend.filter(m=>m.role==='user').length === 0) {
+        console.error("AIPanel.jsx: CRITICAL ERROR - No user messages in payload to backend!");
+    }
 
     try {
-      const messagesForBackend = sessions[currentIdx].messages
-        .filter(msg => msg.id !== placeholderAiMessageId) // Don't send the new placeholder itself
-        .map(msg => ({
-          role: msg.type === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        }));
-
-      // console.log('AIPanel: Calling window.electron.aiChatStream with streamId:', newChatStreamId, 'messagesForBackend:', JSON.stringify(messagesForBackend, null, 2));
-      window.electron.aiChatStream(messagesForBackend, newChatStreamId);
-      // Response will come via onChatChunk, onChatEnd, onChatError
-      // setIsTyping(false) will be handled by onChatEnd or onChatError
-
+      window.electron.aiChatStream(messagesToSendToBackend, newChatStreamId);
     } catch (error) {
-      console.error('AIPanel: Exception calling aiChatStream setup:', error);
-      // Update the placeholder to show an error
+      console.error('AIPanel.jsx: Exception calling aiChatStream setup:', error);
+      // Revert UI state for AI placeholder to error
       setSessions(prevSessions => {
-        const sessionIndexToUpdate = currentIdx;
-        const newSessions = [...prevSessions];
-        const currentSession = newSessions[sessionIndexToUpdate];
-        if (!currentSession) return prevSessions;
-        const msgIndex = currentSession.messages.findIndex(m => m.id === placeholderAiMessageId && m.type === 'ai');
-        if (msgIndex !== -1) {
-          currentSession.messages[msgIndex] = {
-            ...currentSession.messages[msgIndex],
-            content: 'Sorry, I encountered an error starting the chat. Please try again.',
-            isError: true,
-          };
-        }
-        return newSessions;
+          const sessionsCopy = [...prevSessions];
+          const targetSession = sessionsCopy[currentIdx];
+          if (targetSession) {
+              const msgIndex = targetSession.messages.findIndex(m => m.id === placeholderAiMessageId);
+              if (msgIndex !== -1) {
+                  targetSession.messages[msgIndex] = {
+                      ...targetSession.messages[msgIndex],
+                      content: 'Sorry, I encountered an error starting the chat. Please try again.',
+                      isError: true,
+                  };
+              }
+          }
+          return sessionsCopy;
       });
       setIsTyping(false);
       activeChatStreamIdRef.current = null; // Clear ref on error
@@ -454,11 +521,18 @@ const AIPanel = forwardRef(({
 
   // Modified to allow deleting the last chat
   const handleRemoveSession = (idx = currentIdx) => {
+    // Get the highlightId from the session to be removed and call onRemoveHighlight
+    const sessionToRemove = sessions[idx]; // Use direct sessions state here before it's updated
+    if (sessionToRemove && sessionToRemove.highlightId && onRemoveHighlight) {
+      onRemoveHighlight(sessionToRemove.highlightId);
+    }
+
     setSessions(s => {
       if (s.length <= 1) {
         const id = uuid();
         setCurrentIdx(0);
-        return [{ id, title: 'Chat 1', messages: [] }];
+        // Reset the last chat session with highlightId: null
+        return [{ id, title: 'Chat 1', messages: [], highlightId: null }];
       }
       
       const filtered = s.filter((_, i) => i !== idx);
@@ -484,17 +558,71 @@ const AIPanel = forwardRef(({
 
   // Expose switchToEmptyChat to parent via ref
   useImperativeHandle(ref, () => ({
-    switchToEmptyChat: () => {
-      const idx = sessions.findIndex(s => s.messages.length === 0);
-      if (idx !== -1) {
-        setCurrentIdx(idx);
-        setShowStyleChooser(false);
-        setShowCustomPrompt(false);
-        return true;
+    addMessageFromOutside: (text, type = 'ai') => {
+      addAIMessageToSession(text, type === 'error');
+    },
+    focusInput: () => {
+      if (inputRef.current) {
+        inputRef.current.focus();
       }
-      return false;
+    },
+    // CORRECTED switchToEmptyChat - this is called by App.jsx for the TOP RIGHT new chat button
+    switchToEmptyChat: () => {
+      // Check if already on an empty chat to avoid creating multiple ones unnecessarily
+      const currentSession = sessions[currentIdx];
+      if (currentSession && currentSession.messages.length === 0 && !currentSession.highlightId) {
+        if (fullPdfText && fullPdfText.trim() !== '') {
+          setShowPdfContextPrompt(true);
+          setUserChoseToIncludeContext(false); // Reset choice
+        }
+        setInputMessage(''); 
+        setShowCustomPrompt(false);
+        return true; // Indicate it's already on an empty suitable chat
+      }
+
+      // Create a new session if no suitable empty one is currently active
+      const newId = uuid();
+      const newSession = { id: newId, title: `Chat ${sessions.length + 1}`, messages: [], highlightId: null };
+      const newSessions = [...sessions, newSession];
+      setSessions(newSessions);
+      setCurrentIdx(newSessions.length - 1);
+      setInputMessage(''); 
+      setShowCustomPrompt(false);
+
+      if (fullPdfText && fullPdfText.trim() !== '') {
+        setShowPdfContextPrompt(true); // Show prompt for the new empty chat
+        setUserChoseToIncludeContext(false); // Reset choice
+      }
+      return true; // Indicate a new empty chat was created/switched to
     }
   }));
+
+  const currentMessages = sessions[currentIdx]?.messages || [];
+  const isChatEmpty = currentMessages.length === 0;
+
+  let emptyStatePlaceholderText = "Select text in the PDF or type a question below to start chatting.";
+  let showEmptyStateIcon = true; // true for static icon, false for spinner
+
+  if (isChatEmpty) {
+    if (isTyping && (currentStreamingMessageRef.current.messageId || activeChatStreamIdRef.current?.messageId)) {
+      // AI is typing for a new stream (explanation or chat) in an empty panel
+      if (currentStreamingMessageRef.current.messageId) {
+        emptyStatePlaceholderText = "AI is analyzing your highlighted text...";
+      } else { // activeChatStreamIdRef must be set if this branch is hit
+        emptyStatePlaceholderText = "AI is formulating a response...";
+      }
+      showEmptyStateIcon = false; // Show spinner
+    } else { // Not typing, or typing but not for a new stream in an empty panel.
+             // This is the truly static empty state.
+      if (showCustomPrompt && selectedText) {
+        emptyStatePlaceholderText = `Review your query about "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}" or type a new one.`;
+      } else if (selectedText && !showCustomPrompt) { 
+        emptyStatePlaceholderText = `Selected text: "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}". Ask a question or request an explanation.`;
+      }
+      // Default "Select text..." is already set for emptyStatePlaceholderText
+      // showEmptyStateIcon remains true for the static icon
+    }
+  }
 
   return (
     <div style={{ 
@@ -514,21 +642,57 @@ const AIPanel = forwardRef(({
       }}>
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
           <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
-            {/* New Chat */}
+            {/* New Chat button INSIDE AIPanel header */}
             <button onClick={() => {
-              if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } // Clear stream on new chat
-              const idx = sessions.findIndex(s => s.messages.length === 0);
-              if (idx !== -1) {
+              // Clear any active stream and typing indicators first
+              if (currentStreamingMessageRef.current.streamId) { 
+                currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
+              }
+              if (activeChatStreamIdRef.current?.streamId) {
+                activeChatStreamIdRef.current = null;
+              }
+              setIsTyping(false);
+
+              // Try to find an existing, truly empty chat (no messages, no highlight ID)
+              const idx = sessions.findIndex(s => s.messages.length === 0 && !s.highlightId);
+              
+              if (idx !== -1) { // Found an existing empty chat
                 setCurrentIdx(idx);
                 setCustomPrompt('');
                 setShowCustomPrompt(false);
-                return;
+                setInputMessage(''); // Clear input message
+                // Show PDF context prompt if applicable
+                if (fullPdfText && fullPdfText.trim() !== '') {
+                  setShowPdfContextPrompt(true);
+                  setUserChoseToIncludeContext(false);
+                } else {
+                  setShowPdfContextPrompt(false); // Explicitly hide if no PDF text
+                }
+              } else { // No suitable empty chat found, create a new one
+                const newId = uuid();
+                const newSession = { 
+                  id: newId, 
+                  title: `Chat ${sessions.length + 1}`, // Title based on current length before adding
+                  messages: [], 
+                  highlightId: null 
+                };
+                // Use functional update for sessions to correctly get the new index
+                setSessions(prevSessions => {
+                  const updatedSessions = [...prevSessions, newSession];
+                  setCurrentIdx(updatedSessions.length - 1); 
+                  return updatedSessions;
+                });
+                setCustomPrompt('');
+                setShowCustomPrompt(false);
+                setInputMessage(''); // Clear input message
+                // Show PDF context prompt if applicable for the new chat
+                if (fullPdfText && fullPdfText.trim() !== '') {
+                  setShowPdfContextPrompt(true);
+                  setUserChoseToIncludeContext(false);
+                } else {
+                  setShowPdfContextPrompt(false); // Explicitly hide if no PDF text
+                }
               }
-              const id = uuid();
-              setSessions(sessions.concat({ id, title: `Chat ${sessions.length+1}`, messages: [] }));
-              setCurrentIdx(sessions.length);
-              setCustomPrompt('');
-              setShowCustomPrompt(false);
             }} style={{
               background: 'transparent',
               border: 'none',
@@ -668,178 +832,206 @@ const AIPanel = forwardRef(({
       <div 
         ref={chatContainerRef}
         style={{ 
-          flex: 1,
-          padding: '15px',
-          overflowY: 'auto',
+          flexGrow: 1, 
+          padding: '20px', 
+          overflowY: 'auto', 
           display: 'flex',
           flexDirection: 'column',
-          gap: '18px',
+          gap: '18px', // Increased gap for better message separation
         }}
       >
-        {sessions[currentIdx]?.messages.length === 0 && !showCustomPrompt ? (
+        {isChatEmpty ? (
+          // Full-panel placeholder for truly empty chat (static or AI typing for the first time)
           <div style={{
+            textAlign: 'center',
+            color: showEmptyStateIcon ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.6)',
+            fontSize: '0.9rem',
+            padding: '20px',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: '100%',
-            color: 'rgba(255, 255, 255, 0.6)',
-            textAlign: 'center',
-            padding: '0 20px',
+            flexGrow: 1, 
+            fontStyle: showEmptyStateIcon ? 'italic' : 'normal',
           }}>
-            {isTyping ? (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '15px',
-              }}>
-                <div style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  borderTop: '3px solid white',
-                  borderRight: '3px solid transparent',
-                  animation: 'spin 1s linear infinite',
-                }}></div>
-                <p>Analyzing text...</p>
-              </div>
+            {showEmptyStateIcon ? (
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3, marginBottom: '15px' }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                <line x1="9" y1="10" x2="15" y2="10"></line>
+                <line x1="9" y1="13" x2="14" y2="13"></line>
+              </svg>
             ) : (
               <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '20px',
-              }}>
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>
-                <p>Highlight any part of the document or ask a question to start the conversation</p>
-              </div>
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                borderTop: '3px solid rgba(255, 255, 255, 0.7)',
+                borderRight: '3px solid transparent',
+                animation: 'spin 1s linear infinite',
+                marginBottom: '15px',
+              }}></div>
             )}
+            {emptyStatePlaceholderText}
           </div>
         ) : (
-          <>
-            {sessions[currentIdx]?.messages.map((message) => (
-              <div 
-                key={message.id}
-                style={{
-                  width: '100%',
-                }}
-              >
-                {/* Sender label */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '4px',
-                  paddingLeft: '2px',
-                }}>
-                  <div style={{
-                    color: message.type === 'user' ? '#4f8cb5' : '#c3e9ff',
-                    fontSize: '0.75rem',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}>
-                    {message.type === 'ai' ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                      </svg>
-                    )}
-                    {message.type === 'ai' ? 'AI Assistant' : 'You'}
-                  </div>
-                  <div style={{ 
-                    fontSize: '0.7rem',
-                    color: 'rgba(255, 255, 255, 0.4)',
-                    marginLeft: '8px',
-                  }}>
-                    {formatTime(message.timestamp)}
-                  </div>
-                </div>
-                
-                {/* Message content */}
-                <div style={{
-                  background: message.type === 'user' 
-                    ? 'rgba(44, 83, 100, 0.4)' 
-                    : message.isError 
-                      ? 'rgba(178, 34, 34, 0.3)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                  padding: '14px 16px',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '0.9rem',
-                  lineHeight: '1.5',
-                  wordWrap: 'break-word',
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                }}>
-                  {message.action && message.action.type === 'goToHighlight' && message.type === 'user' && (
-                    <button
-                      onClick={() => {
-                        if (onGoToHighlight && message.action.location) {
-                          onGoToHighlight(message.action.location);
-                        } else {
-                          console.warn('onGoToHighlight not available or location missing for message action');
-                        }
-                      }}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        color: 'white',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        marginBottom: '8px', 
-                        display: 'inline-block', 
-                        fontSize: '0.75rem',
-                        fontWeight: '500'
-                      }}
-                    >
-                      {message.action.label || 'View in PDF'}
-                    </button>
-                  )}
-                  <div style={{ whiteSpace: 'pre-wrap' }}>
-                    {message.content}
-                    {message.type === 'ai' && isTyping && currentStreamingMessageRef.current.messageId === message.id ? '...' : ''}
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {isTyping && !sessions[currentIdx]?.messages.find(m => m.id === currentStreamingMessageRef.current.messageId && m.type ==='ai') && (
-              <div style={{
+          // If chat is not empty, render all messages
+          currentMessages.map((message) => (
+            <div 
+              key={message.id}
+              style={{
                 width: '100%',
-                background: 'rgba(255, 255, 255, 0.05)',
-                padding: '12px 16px',
-                borderRadius: '6px',
-                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {/* Sender label */}
+              <div style={{
                 display: 'flex',
-                gap: '8px',
                 alignItems: 'center',
+                marginBottom: '4px',
+                paddingLeft: '2px',
               }}>
-                <div style={{ 
-                  color: '#c3e9ff',
-                  fontSize: '0.8rem',
+                <div style={{
+                  color: message.type === 'user' ? '#4f8cb5' : '#c3e9ff',
+                  fontSize: '0.75rem',
+                  fontWeight: '500',
                   display: 'flex',
                   alignItems: 'center',
+                  gap: '6px',
                 }}>
-                  <span style={{ marginRight: '8px' }}>AI is typing</span>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {[0,1,2].map(i => <div key={i} style={{ width: '5px', height: '5px', backgroundColor: 'currentColor', borderRadius: '50%', opacity: 0.8, animation: `pulse 1s infinite ${i * 0.2}s`}}></div>)}
-                  </div>
+                  {message.type === 'ai' ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  )}
+                  {message.type === 'ai' ? 'AI Assistant' : 'You'}
+                </div>
+                <div style={{ 
+                  fontSize: '0.7rem',
+                  color: 'rgba(255, 255, 255, 0.4)',
+                  marginLeft: '8px',
+                }}>
+                  {formatTime(message.timestamp)}
                 </div>
               </div>
-            )}
-          </>
+              
+              {/* Message content */}
+              <div style={{
+                background: message.type === 'user' 
+                  ? 'rgba(44, 83, 100, 0.4)' 
+                  : message.isError 
+                    ? 'rgba(178, 34, 34, 0.3)'
+                    : 'rgba(255, 255, 255, 0.05)',
+                padding: '14px 16px',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '0.9rem',
+                lineHeight: '1.5',
+                wordWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+              }}>
+                {message.action && message.action.type === 'goToHighlight' && message.type === 'user' && (
+                  <button
+                    onClick={() => {
+                      if (onGoToHighlight && message.action.location) {
+                        onGoToHighlight(message.action.location);
+                      } else {
+                        console.warn('onGoToHighlight not available or location missing for message action');
+                      }
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      marginBottom: '8px', 
+                      display: 'inline-block', 
+                      fontSize: '0.75rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    {message.action.label || 'View in PDF'}
+                  </button>
+                )}
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {message.content}
+                  {message.type === 'ai' && isTyping && currentStreamingMessageRef.current.messageId === message.id ? '...' : ''}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        
+        {/* Typing indicator: shown only if messages are present AND AI is typing a new stream that isn't yet in currentMessages */} 
+        {isTyping && !isChatEmpty && 
+         ((currentStreamingMessageRef.current.messageId && !currentMessages.find(m => m.id === currentStreamingMessageRef.current.messageId)) || 
+          (activeChatStreamIdRef.current?.messageId && !currentMessages.find(m => m.id === activeChatStreamIdRef.current?.messageId))) && 
+        (
+          <div style={{
+            width: '100%',
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '12px 16px',
+            borderRadius: '6px',
+            animation: 'fadeIn 0.3s ease-out',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+          }}>
+            <div style={{ 
+              color: '#c3e9ff',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+            }}>
+              <span style={{ marginRight: '8px' }}>AI is typing</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[0,1,2].map(i => <div key={i} style={{ width: '5px', height: '5px', backgroundColor: 'currentColor', borderRadius: '50%', opacity: 0.8, animation: `pulse 1s infinite ${i * 0.2}s`}}></div>)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PDF Context Prompt */} 
+        {showPdfContextPrompt && sessions[currentIdx] && sessions[currentIdx].messages.length === 0 && (
+          <div style={{
+            padding: '10px 15px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '8px',
+            margin: '10px 0',
+            textAlign: 'center'
+          }}>
+            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.9)' }}>Include full PDF context?</p>
+            <button 
+              onClick={() => { 
+                setUserChoseToIncludeContext(true); 
+                setShowPdfContextPrompt(false); 
+                if (inputRef.current) inputRef.current.focus(); 
+                // Optionally send a default message if input is empty after choosing yes
+                if (!inputMessage.trim()) handleSendMessage(); // Auto-send if input is empty
+              }}
+              style={{ background: '#2c5364', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', marginRight: '10px', cursor: 'pointer' }}
+            >
+              Yes, Add Context
+            </button>
+            <button 
+              onClick={() => { 
+                setUserChoseToIncludeContext(false); 
+                setShowPdfContextPrompt(false); 
+                if (inputRef.current) inputRef.current.focus(); 
+              }}
+              style={{ background: 'rgba(255, 255, 255, 0.2)', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+            >
+              No, Start Fresh
+            </button>
+          </div>
         )}
       </div>
       

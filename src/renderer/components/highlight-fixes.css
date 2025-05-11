@@ -40,3 +40,13 @@
 .textLayer .highlight::before {
   animation: highlightFade 0.3s ease-out;
 }
+
+/* Style for the currently scrolled-to highlight */
+.persistent-highlight.active-scrolled-highlight {
+  outline: 2px solid #FFD700; /* Gold outline */
+  box-shadow: 0 0 10px 3px #FFB000; /* Amber/Gold glow */
+  background-color: rgba(255, 215, 0, 0.3) !important; /* Slightly more prominent background */
+  /* Ensure it's visually on top if there are stacking issues, though mix-blend-mode might handle it */
+  z-index: 1 !important; 
+  transition: outline 0.3s ease-in-out, box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out;
+}

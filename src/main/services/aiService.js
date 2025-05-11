@@ -255,23 +255,29 @@ async function startChatStream(messages, streamId, streamChunkCallback) {
         return;
     }
 
-    const formattedMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-    }));
-    if (!formattedMessages.find(m => m.role === 'system')) {
-        formattedMessages.unshift({ role: "system", content: "You are a helpful AI assistant." });
+    // Log the messages received by startChatStream for inspection
+    console.log(`aiService.startChatStream: Messages received for OpenAI (length ${messages?.length}):`, JSON.stringify(messages, null, 2));
+
+    let finalMessages = [...messages]; // Make a copy to modify
+
+    // Ensure there's a system message. If not, prepend a default one.
+    if (!finalMessages.find(msg => msg.role === 'system')) {
+      finalMessages.unshift({ role: "system", content: "Address the user\'s last message directly." });
+      console.log(`aiService.startChatStream: Prepended VERY direct system message. Updated messages (length ${finalMessages?.length}):`, JSON.stringify(finalMessages, null, 2));
+    } else {
+      console.log(`aiService.startChatStream: Existing system message found. Messages (length ${finalMessages?.length}):`, JSON.stringify(finalMessages, null, 2));
     }
 
     try {
-        console.log(`aiService.startChatStream: Attempting OpenAI API call for streamId: ${streamId}`);
+        console.log(`aiService.startChatStream: Attempting OpenAI API call for streamId: ${streamId}. Messages payload:`, JSON.stringify(messages, null, 2));
         // streamChunkCallback({ streamId, type: 'status', content: 'Contacting AI for chat...' });
 
         const stream = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: formattedMessages,
+            model: "gpt-3.5-turbo", // Consider making this configurable
+            messages: finalMessages, // Use the potentially modified messages array
             stream: true,
-            temperature: 0.7,
+            temperature: 0.7, // Consider making this configurable
+            max_tokens: 1500,  // Explicitly set max_tokens for the completion
         });
 
         for await (const chunk of stream) {

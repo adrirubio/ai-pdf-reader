@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 
-const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }, ref) => {
+const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, onFullTextExtracted }, ref) => {
   const [pdfDocument, setPdfDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1.5);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
+  const [persistentHighlights, setPersistentHighlights] = useState([]);
+  const [pageRenderKey, setPageRenderKey] = useState(0);
   const [error, setError] = useState(null);
+  const [activeHighlightId, setActiveHighlightId] = useState(null);
   const [selectionTooltip, setSelectionTooltip] = useState({
     visible: false,
     text: '',
@@ -18,6 +21,27 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
   const tooltipRef = useRef(null);
   const selectedTextRef = useRef('');
 
+  // Load highlights from session storage on component mount
+  useEffect(() => {
+    try {
+      const storedHighlights = sessionStorage.getItem('pdfPersistentHighlights');
+      if (storedHighlights) {
+        setPersistentHighlights(JSON.parse(storedHighlights));
+      }
+    } catch (e) {
+      console.error("Failed to load highlights from session storage", e);
+    }
+  }, []);
+
+  // Save highlights to session storage whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('pdfPersistentHighlights', JSON.stringify(persistentHighlights));
+    } catch (e) {
+      console.error("Failed to save highlights to session storage", e);
+    }
+  }, [persistentHighlights]);
+
   // Load PDF document when filePath changes
   useEffect(() => {
     if (!filePath) return;
@@ -26,6 +50,10 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
       setLoading(true);
       setError(null);
       setLoadingStatus('Starting PDF load...');
+      setPersistentHighlights([]); // Clear highlights for new PDF
+      if (onFullTextExtracted) { // Clear any previous full text
+        onFullTextExtracted('');
+      }
       
       try {
         console.log('Loading PDF from:', filePath);
@@ -67,6 +95,23 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
         setTotalPages(document.numPages);
         setCurrentPage(1);
         setLoadingStatus('');
+
+        // Extract full text
+        if (onFullTextExtracted) {
+          setLoadingStatus('Extracting text...');
+          let fullText = '';
+          for (let i = 1; i <= document.numPages; i++) {
+            const page = await document.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n'; // Add double newline between pages
+            setLoadingStatus(`Extracted text from page ${i}/${document.numPages}`);
+          }
+          onFullTextExtracted(fullText.trim());
+          console.log('Full text extracted.');
+          setLoadingStatus('');
+        }
+
       } catch (error) {
         console.error('Failed to load PDF:', error);
         setError('Failed to load PDF: ' + error.message);
@@ -77,7 +122,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
     };
 
     loadPdf();
-  }, [filePath]);
+  }, [filePath, onFullTextExtracted]);
 
   // Render current page when it changes
   useEffect(() => {
@@ -146,6 +191,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
         // Make text layer selectable
         textLayerDiv.style.pointerEvents = 'auto';
         setLoadingStatus('');
+        setPageRenderKey(prevKey => prevKey + 1);
       } catch (error) {
         console.error('Error rendering page:', error);
         setError('Error rendering page: ' + error.message);
@@ -157,6 +203,46 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
 
     renderCurrentPage();
   }, [pdfDocument, currentPage, scale]);
+
+  // Effect to render persistent highlights
+  useEffect(() => {
+    if (!pdfDocument || !containerRef.current || !containerRef.current.querySelector('.canvasWrapper')) {
+      return;
+    }
+
+    const canvasWrapper = containerRef.current.querySelector('.canvasWrapper');
+    if (!canvasWrapper) return;
+
+    // Remove old highlight divs for the current page to prevent duplicates
+    const oldHighlightElements = canvasWrapper.querySelectorAll('.persistent-highlight');
+    oldHighlightElements.forEach(el => el.remove());
+
+    const highlightsForCurrentPage = persistentHighlights.filter(
+      h => h.pageNumber === currentPage
+    );
+
+    highlightsForCurrentPage.forEach(highlight => {
+      highlight.rectsOnPage.forEach(rect => {
+        const highlightDiv = document.createElement('div');
+        highlightDiv.className = 'persistent-highlight';
+        if (highlight.id === activeHighlightId) {
+          highlightDiv.classList.add('active-scrolled-highlight');
+        }
+        highlightDiv.style.position = 'absolute';
+        highlightDiv.style.top = `${rect.top * scale}px`;
+        highlightDiv.style.left = `${rect.left * scale}px`;
+        highlightDiv.style.width = `${rect.width * scale}px`;
+        highlightDiv.style.height = `${rect.height * scale}px`;
+        highlightDiv.style.backgroundColor = 'rgba(135, 206, 235, 0.25)'; // Sky blueish from highlight-fixes.css
+        highlightDiv.style.mixBlendMode = 'multiply'; // From highlight-fixes.css
+        highlightDiv.style.pointerEvents = 'none';
+        highlightDiv.style.borderRadius = '0.25em'; // From highlight-fixes.css
+        highlightDiv.style.zIndex = '0'; // Above canvas, potentially under text layer's transparent text
+        highlightDiv.setAttribute('data-highlight-id', highlight.id); 
+        canvasWrapper.appendChild(highlightDiv);
+      });
+    });
+  }, [persistentHighlights, currentPage, scale, pdfDocument, pageRenderKey, activeHighlightId]);
 
   // IMPROVED: Handle text selection with fixed tooltip position
   useEffect(() => {
@@ -253,30 +339,64 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
     try {
       console.log('Button clicked:', style);
       
-      // Use the stored text to ensure we have it
-      const text = selectedTextRef.current || selectionTooltip.text;
+      const selection = window.getSelection();
+      const text = (selectedTextRef.current || selectionTooltip.text || "").trim();
       
-      if (!text) {
-        console.error('No text selected for AI explanation');
+      if (!text || !selection.rangeCount) {
+        console.error('No text selected or no range for AI explanation/highlighting');
         return;
       }
       
-      // Hide tooltip first
-      setSelectionTooltip({ visible: false });
-      
-      // Reset selection
-      window.getSelection().removeAllRanges();
-      
-      // Delay to ensure UI updates before callback
-      setTimeout(() => {
-        // Call the parent callback
-        if (onTextSelected && typeof onTextSelected === 'function') {
-          console.log('Calling onTextSelected with:', text, style, 'on page', currentPage);
-          onTextSelected(text, style, { pageNumber: currentPage });
-        } else {
-          console.error('onTextSelected is not available');
-        }
-      }, 100);
+      const range = selection.getRangeAt(0);
+      const clientRects = Array.from(range.getClientRects());
+      const canvasWrapper = containerRef.current.querySelector('.canvasWrapper');
+
+      if (canvasWrapper && clientRects.length > 0) {
+        const canvasWrapperRect = canvasWrapper.getBoundingClientRect();
+        const rectsOnPage = clientRects.map(rect => ({
+          top: (rect.top - canvasWrapperRect.top) / scale,
+          left: (rect.left - canvasWrapperRect.left) / scale,
+          width: rect.width / scale,
+          height: rect.height / scale,
+        }));
+        const newHighlight = {
+          id: Date.now(),
+          pageNumber: currentPage,
+          text: text, // Store the actual text for potential future use
+          rectsOnPage: rectsOnPage,
+        };
+        setPersistentHighlights(prevHighlights => [...prevHighlights, newHighlight]);
+        // Pass the newHighlight's id and first rect for scrolling
+        const locationForCallback = { 
+          id: newHighlight.id, 
+          pageNumber: currentPage, 
+          rect: rectsOnPage.length > 0 ? rectsOnPage[0] : null 
+        };
+        // console.log('New highlight created, locationForCallback:', locationForCallback); // For debugging
+
+        // Hide tooltip first
+        setSelectionTooltip({ visible: false });
+        
+        // Reset selection
+        window.getSelection().removeAllRanges();
+        
+        // Delay to ensure UI updates before callback
+        setTimeout(() => {
+          // Call the parent callback
+          if (onTextSelected && typeof onTextSelected === 'function') {
+            console.log('Calling onTextSelected with:', text, style, 'on page', currentPage, 'location:', locationForCallback);
+            onTextSelected(text, style, locationForCallback); // Pass comprehensive location data
+          } else {
+            console.error('onTextSelected is not available');
+          }
+        }, 100);
+      } else { // Added else to handle case where canvasWrapper or clientRects are missing
+        console.error('Could not create highlight: canvasWrapper or clientRects missing.');
+        // Hide tooltip first
+        setSelectionTooltip({ visible: false });
+        // Reset selection
+        window.getSelection().removeAllRanges();
+      }
     } catch (error) {
       console.error('Error in handleAskAI:', error);
     }
@@ -323,22 +443,72 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }
   // Expose scrollToHighlight method via ref
   useImperativeHandle(ref, () => ({
     scrollToHighlight: (locationData) => {
-      if (locationData && typeof locationData.pageNumber !== 'undefined') {
+      if (locationData && typeof locationData.pageNumber !== 'undefined' && locationData.id) {
         const pageNum = parseInt(locationData.pageNumber, 10);
         if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-          if (currentPage !== pageNum) { // Only set if different to avoid re-render if already on page
-             setCurrentPage(pageNum);
+          
+          const performScrollAndHighlight = () => {
+            const targetHighlightElement = document.querySelector(`.persistent-highlight[data-highlight-id="${locationData.id}"]`);
+            if (targetHighlightElement) {
+              targetHighlightElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setActiveHighlightId(locationData.id); // Set active ID for styling
+
+              // Remove the active class after a delay
+              setTimeout(() => {
+                setActiveHighlightId(null);
+              }, 2000); // Highlight for 2 seconds
+            } else {
+              console.warn('scrollToHighlight: Target highlight element not found on page', pageNum, 'for id', locationData.id);
+            }
+          };
+
+          if (currentPage !== pageNum) {
+            setCurrentPage(pageNum);
+            // Need to wait for page to render, using setTimeout as a temporary measure
+            // A more robust solution might involve a callback or effect after page render
+            setTimeout(performScrollAndHighlight, 500); // Adjust delay as needed
+          } else {
+            // Already on the correct page, scroll immediately
+            performScrollAndHighlight();
           }
-          // Optional: Add logic here to scroll to a specific Y offset if available in locationData
-          // For now, just navigating to the page.
         } else {
           console.warn('Invalid page number for scrollToHighlight:', locationData.pageNumber, 'Total pages:', totalPages);
         }
       } else {
-        console.warn('scrollToHighlight called without valid pageNumber in locationData', locationData);
+        console.warn('scrollToHighlight called without valid pageNumber or id in locationData', locationData);
       }
+    },
+    removeHighlight: (highlightIdToRemove) => {
+      setPersistentHighlights(currentHighlights => 
+        currentHighlights.filter(h => h.id !== highlightIdToRemove)
+      );
     }
   }));
+
+  // Effect to clear active highlight when component unmounts or relevant dependencies change
+  useEffect(() => {
+    return () => {
+      setActiveHighlightId(null);
+    };
+  }, []); // Clear on unmount
+
+  // Re-apply active class if activeHighlightId is set and page changes (or scale changes)
+  // This ensures the class is present if the highlight re-renders
+  useEffect(() => {
+    if (activeHighlightId && containerRef.current) {
+      const canvasWrapper = containerRef.current.querySelector('.canvasWrapper');
+      if (canvasWrapper) {
+        // Remove from any old ones first (though should be handled by highlight removal)
+        const oldActive = canvasWrapper.querySelectorAll('.active-scrolled-highlight');
+        oldActive.forEach(el => el.classList.remove('active-scrolled-highlight'));
+        
+        const targetHighlightElement = canvasWrapper.querySelector(`.persistent-highlight[data-highlight-id="${activeHighlightId}"]`);
+        if (targetHighlightElement) {
+          targetHighlightElement.classList.add('active-scrolled-highlight');
+        }
+      }
+    }
+  }, [activeHighlightId, currentPage, scale, pageRenderKey]); // Dependencies that cause re-render of highlights
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
