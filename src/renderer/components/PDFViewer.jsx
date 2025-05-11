@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 
-const PDFViewer = ({ filePath, onTextSelected, pdfContentStyle = {} }) => {
+const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {} }, ref) => {
   const [pdfDocument, setPdfDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -271,8 +271,8 @@ const PDFViewer = ({ filePath, onTextSelected, pdfContentStyle = {} }) => {
       setTimeout(() => {
         // Call the parent callback
         if (onTextSelected && typeof onTextSelected === 'function') {
-          console.log('Calling onTextSelected with:', text, style);
-          onTextSelected(text, style);
+          console.log('Calling onTextSelected with:', text, style, 'on page', currentPage);
+          onTextSelected(text, style, { pageNumber: currentPage });
         } else {
           console.error('onTextSelected is not available');
         }
@@ -319,6 +319,26 @@ const PDFViewer = ({ filePath, onTextSelected, pdfContentStyle = {} }) => {
       setScale(prevScale => prevScale - 0.2);
     }
   };
+
+  // Expose scrollToHighlight method via ref
+  useImperativeHandle(ref, () => ({
+    scrollToHighlight: (locationData) => {
+      if (locationData && typeof locationData.pageNumber !== 'undefined') {
+        const pageNum = parseInt(locationData.pageNumber, 10);
+        if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+          if (currentPage !== pageNum) { // Only set if different to avoid re-render if already on page
+             setCurrentPage(pageNum);
+          }
+          // Optional: Add logic here to scroll to a specific Y offset if available in locationData
+          // For now, just navigating to the page.
+        } else {
+          console.warn('Invalid page number for scrollToHighlight:', locationData.pageNumber, 'Total pages:', totalPages);
+        }
+      } else {
+        console.warn('scrollToHighlight called without valid pageNumber in locationData', locationData);
+      }
+    }
+  }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -596,6 +616,6 @@ const PDFViewer = ({ filePath, onTextSelected, pdfContentStyle = {} }) => {
       </div>
     </div>
   );
-};
+});
 
 export default PDFViewer;

@@ -9,7 +9,9 @@ const AIPanel = forwardRef(({
   customPrompt,
   setCustomPrompt,
   onClose,
-  newChatCount
+  newChatCount,
+  onGoToHighlight,
+  selectedLocation
 }, ref) => {
   // multiple chat sessions
   const [sessions, setSessions] = useState([
@@ -22,7 +24,6 @@ const AIPanel = forwardRef(({
   const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const chatContainerRef = useRef(null);
   const inputRef = useRef(null);
-  const customPromptRef = useRef(null);
   const [lastSelectedText, setLastSelectedText] = useState('');
 
   // Ref to keep track of the current streaming AI message ID and its stream ID (for EXPLAIN)
@@ -198,7 +199,7 @@ const AIPanel = forwardRef(({
     if (selectedText && selectedText !== lastSelectedText) {
       setShowCustomPrompt(true);
       setCustomPrompt('');
-      addUserMessageToSession(selectedText);
+      // addUserMessageToSession(selectedText); // Commented out to prevent auto-adding
       setLastSelectedText(selectedText);
       // Cancel any ongoing explanation stream if user selects new text
       if (currentStreamingMessageRef.current.streamId) {
@@ -208,7 +209,7 @@ const AIPanel = forwardRef(({
         currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
       }
     }
-  }, [selectedText]);
+  }, [selectedText, lastSelectedText]);
 
   // Auto-scroll to bottom of chat when messages change
   useEffect(() => {
@@ -217,14 +218,15 @@ const AIPanel = forwardRef(({
     }
   }, [sessions]);
 
-  // Focus on input when chat is ready
+  // Focus on input based on mode (custom prompt or follow-up)
   useEffect(() => {
-    if (showCustomPrompt && customPromptRef.current) {
-      customPromptRef.current.focus();
-    } else if (inputRef.current && sessions[currentIdx].messages.length > 0 && !isTyping) {
+    if (showCustomPrompt && inputRef.current) {
+      inputRef.current.focus();
+    } else if (!showCustomPrompt && inputRef.current && sessions[currentIdx]?.messages.length > 0 && !isTyping) {
+      // Only focus for follow-up if not in custom prompt mode and there are messages
       inputRef.current.focus();
     }
-  }, [sessions, isTyping, showCustomPrompt]);
+  }, [showCustomPrompt, currentIdx, sessions, isTyping, inputRef]);
 
   // whenever parent does "newChatCount++", create a new session
   useEffect(() => {
@@ -239,7 +241,7 @@ const AIPanel = forwardRef(({
     setShowCustomPrompt(false);
     setShowStyleChooser(false);
     setLastSelectedText('');
-  }, [newChatCount, setCustomPrompt]);
+  }, [newChatCount]);
 
   // --- useEffect for setting up IPC Listeners (UPDATED) ---
   useEffect(() => {
@@ -266,16 +268,36 @@ const AIPanel = forwardRef(({
     };
   }, [handleExplainChunk, handleExplainEnd, handleExplainError, handleChatChunk, handleChatEnd, handleChatError]);
 
-  const addUserMessageToSession = (text, sessionIndex = currentIdx) => {
+  const addUserMessageToSession = (messageData, sessionIndex = currentIdx) => {
     const newMessageId = uuid();
     setSessions(s => {
       const copy = [...s];
       if (!copy[sessionIndex]) {
         copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [] };
       }
-      copy[sessionIndex].messages.push({
-        id: newMessageId, type: 'user', content: text, timestamp: new Date().toISOString()
-      });
+
+      let messageToAdd;
+      if (typeof messageData === 'object' && messageData.actionType === 'goToHighlight') {
+        messageToAdd = {
+          id: newMessageId,
+          type: 'user',
+          content: messageData.text, // The actual instruction string
+          action: {
+            type: messageData.actionType,
+            label: messageData.actionLabel,
+            location: messageData.actionLocation
+          },
+          timestamp: new Date().toISOString()
+        };
+      } else { // Existing behavior for plain string messages (like from handleSendMessage)
+        messageToAdd = {
+          id: newMessageId,
+          type: 'user',
+          content: messageData, // messageData is a string in this case
+          timestamp: new Date().toISOString()
+        };
+      }
+      copy[sessionIndex].messages.push(messageToAdd);
       return copy;
     });
     return newMessageId;
@@ -311,10 +333,13 @@ const AIPanel = forwardRef(({
       return;
     }
     
-    const currentSessionMessages = sessions[currentIdx]?.messages || [];
-    if (currentSessionMessages.length === 0 || currentSessionMessages[currentSessionMessages.length -1]?.content !== textForExplanation) {
-        addUserMessageToSession(`Explaining: "${textForExplanation.substring(0,100)}..."`);
-    }
+    const userMessageObject = {
+      text: explanationStylePrompt, // This is the user's "how you want the AI response"
+      actionType: 'goToHighlight',
+      actionLabel: 'View Highlighted PDF Section', // Button text
+      actionLocation: selectedLocation // Prop received from App.jsx
+    };
+    addUserMessageToSession(userMessageObject);
 
     const placeholderMessageId = uuid();
     console.log(`AIPanel generateInitialExplanation: placeholderMessageId generated for AI msg: "${placeholderMessageId}"`);
@@ -418,6 +443,7 @@ const AIPanel = forwardRef(({
   const handleSubmitCustomPrompt = () => {
     if (!customPrompt.trim() || !lastSelectedText) return;
     generateInitialExplanation(lastSelectedText, customPrompt);
+    setCustomPrompt(''); // Clear the input field after submission
   };
 
   // Format timestamp to readable time
@@ -484,98 +510,110 @@ const AIPanel = forwardRef(({
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         background: 'rgba(44, 83, 100, 0.4)',
       }}>
-        <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
-          {/* New Chat */}
-          <button onClick={() => {
-            if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } // Clear stream on new chat
-            const idx = sessions.findIndex(s => s.messages.length === 0);
-            if (idx !== -1) {
-              setCurrentIdx(idx);
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+          <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
+            {/* New Chat */}
+            <button onClick={() => {
+              if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } // Clear stream on new chat
+              const idx = sessions.findIndex(s => s.messages.length === 0);
+              if (idx !== -1) {
+                setCurrentIdx(idx);
+                setCustomPrompt('');
+                setShowCustomPrompt(false);
+                return;
+              }
+              const id = uuid();
+              setSessions(sessions.concat({ id, title: `Chat ${sessions.length+1}`, messages: [] }));
+              setCurrentIdx(sessions.length);
               setCustomPrompt('');
               setShowCustomPrompt(false);
-              return;
-            }
-            const id = uuid();
-            setSessions(sessions.concat({ id, title: `Chat ${sessions.length+1}`, messages: [] }));
-            setCurrentIdx(sessions.length);
-            setCustomPrompt('');
-            setShowCustomPrompt(false);
-          }} style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '30px',
-            height: '30px',
-            borderRadius: '50%',
-            transition: 'background 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-          </button>
-
-          {/* Chat dropdown (now uses rgba(44,83,100,0.4) background) */}
-          <select
-            className="chat-select"
-            value={sessions[currentIdx]?.id || ''}
-            onChange={e => {
-              if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; }
-              const idx = sessions.findIndex(s => s.id === e.target.value);
-              if (idx >= 0) setCurrentIdx(idx);
-            }}
-            style={{
-              marginRight: '2px',   // tighten up gap
-              backgroundColor: 'rgba(44, 83, 100, 0.4)',  // ← updated to match header
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '0.9rem',
-              appearance: 'none',
-            }}
-          >
-            {sessions.map((s,i) => (
-              <option key={s.id} value={s.id}>{s.title}</option>
-            ))}
-          </select>
-
-          {/* Remove current chat */}
-          <button
-            onClick={() => { if (currentStreamingMessageRef.current.streamId && sessions[currentIdx]?.id === sessions.find((s,i)=>i === currentIdx)?.id ) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleRemoveSession(currentIdx);}}
-            title="Remove Chat"
-            style={{
-              marginLeft: '2px',     // tuck it in a bit
+            }} style={{
               background: 'transparent',
               border: 'none',
-              color: 'white',  // Always enabled now
-              cursor: 'pointer',  // Always enabled now
-              padding: 0,
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              transition: 'background 0.2s ease',
             }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              style={{ display: 'block' }}>
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
-              <path d="M10 11v6"/>
-              <path d="M14 11v6"/>
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-            </svg>
-          </button>
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+
+            {/* Chat dropdown (now uses rgba(44,83,100,0.4) background) */}
+            <select
+              className="chat-select"
+              value={sessions[currentIdx]?.id || ''}
+              onChange={e => {
+                if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; }
+                const idx = sessions.findIndex(s => s.id === e.target.value);
+                if (idx >= 0) setCurrentIdx(idx);
+              }}
+              style={{
+                backgroundColor: 'rgba(44, 83, 100, 0.4)',  // ← updated to match header
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '0.9rem',
+                appearance: 'none',
+              }}
+            >
+              {sessions.map((s,i) => (
+                <option key={s.id} value={s.id}>{s.title}</option>
+              ))}
+            </select>
+
+            {/* Remove current chat */}
+            <button
+              onClick={() => { if (currentStreamingMessageRef.current.streamId && sessions[currentIdx]?.id === sessions.find((s,i)=>i === currentIdx)?.id ) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleRemoveSession(currentIdx);}}
+              title="Remove Chat"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'white',  // Always enabled now
+                cursor: 'pointer',  // Always enabled now
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                <path d="M10 11v6"/>
+                <path d="M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+              </svg>
+            </button>
+          </div>
         </div>
         
         <h3 style={{
@@ -583,101 +621,48 @@ const AIPanel = forwardRef(({
           fontWeight: '600',
           fontSize: '1.1rem',
           color: 'white',
+          textAlign: 'center',
         }}>
           AI Chat Assistant
         </h3>
         
-        <button
-          onClick={()=>{ if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleClose();}}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '30px',
-            height: '30px',
-            borderRadius: '50%',
-            transition: 'background 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={()=>{ if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleClose();}}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              transition: 'background 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
       
       {/* Custom Prompt Input (shown only when text is selected and prompt hasn't been submitted yet) */}
+      {/* REMOVED entire block for top custom prompt input:
       {showCustomPrompt && selectedText && !isTyping && (
-        <div style={{
-          padding: '15px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          backgroundColor: 'rgba(44, 83, 100, 0.2)',
-        }}>
-          <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem' }}>How would you like me to explain this text?</p>
-          <textarea
-            ref={customPromptRef}
-            value={customPrompt}
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter your instructions here..."
-            style={{
-              width: '100%',
-              padding: '10px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              color: 'white',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '8px',
-              resize: 'vertical',
-              minHeight: '80px',
-              fontSize: '0.9rem',
-              marginBottom: '10px',
-            }}
-          />
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <button
-              onClick={handleSubmitCustomPrompt}
-              disabled={!customPrompt.trim()}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: customPrompt.trim() ? 'rgba(44, 83, 100, 0.8)' : 'rgba(44, 83, 100, 0.3)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: customPrompt.trim() ? 'pointer' : 'not-allowed',
-                fontSize: '0.9rem',
-                transition: 'background 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                if (customPrompt.trim()) {
-                  e.currentTarget.style.backgroundColor = 'rgba(44, 83, 100, 1)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (customPrompt.trim()) {
-                  e.currentTarget.style.backgroundColor = 'rgba(44, 83, 100, 0.8)';
-                }
-              }}
-            >
-              Submit
-            </button>
-          </div>
-        </div>
+        ...
       )}
+      */}
       
       {/* Chat messages */}
       <div 
@@ -797,7 +782,35 @@ const AIPanel = forwardRef(({
                   whiteSpace: 'pre-wrap',
                   fontFamily: 'system-ui, -apple-system, sans-serif',
                 }}>
-                  {message.content}{message.type === 'ai' && isTyping && currentStreamingMessageRef.current.messageId === message.id ? '...' : ''}
+                  {message.action && message.action.type === 'goToHighlight' && message.type === 'user' && (
+                    <button
+                      onClick={() => {
+                        if (onGoToHighlight && message.action.location) {
+                          onGoToHighlight(message.action.location);
+                        } else {
+                          console.warn('onGoToHighlight not available or location missing for message action');
+                        }
+                      }}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: 'white',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        marginBottom: '8px', 
+                        display: 'inline-block', 
+                        fontSize: '0.75rem',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {message.action.label || 'View in PDF'}
+                    </button>
+                  )}
+                  <div style={{ whiteSpace: 'pre-wrap' }}>
+                    {message.content}
+                    {message.type === 'ai' && isTyping && currentStreamingMessageRef.current.messageId === message.id ? '...' : ''}
+                  </div>
                 </div>
               </div>
             ))}
@@ -836,6 +849,24 @@ const AIPanel = forwardRef(({
         background: 'rgba(15, 32, 39, 0.95)',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',
       }}>
+        {showCustomPrompt && lastSelectedText && (
+          <button 
+            onClick={onGoToHighlight}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: 'white',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              padding: '3px 6px',
+              fontSize: '0.7rem',
+              cursor: 'pointer',
+              marginBottom: '5px',
+              display: 'block',
+            }}
+          >
+            Go to Highlight in PDF
+          </button>
+        )}
         <div style={{ 
           display: 'flex',
           alignItems: 'flex-end',
@@ -847,10 +878,10 @@ const AIPanel = forwardRef(({
         }}>
           <textarea
             ref={inputRef}
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            value={showCustomPrompt ? customPrompt : inputMessage}
+            onChange={(e) => showCustomPrompt ? setCustomPrompt(e.target.value) : setInputMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a follow-up question..."
+            placeholder={showCustomPrompt ? "How would you like your response?" : "Ask a follow-up question..."}
             style={{
               flex: 1,
               background: 'transparent',
@@ -865,14 +896,14 @@ const AIPanel = forwardRef(({
               fontFamily: 'inherit',
             }}
             rows={1}
-            disabled={isTyping || showCustomPrompt}
+            disabled={isTyping}
           />
           
           <button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isTyping || showCustomPrompt}
+            onClick={showCustomPrompt ? handleSubmitCustomPrompt : handleSendMessage}
+            disabled={isTyping || (showCustomPrompt ? !customPrompt.trim() : !inputMessage.trim())}
             style={{
-              background: !inputMessage.trim() || isTyping || showCustomPrompt
+              background: isTyping || (showCustomPrompt ? !customPrompt.trim() : !inputMessage.trim())
                 ? 'rgba(44, 83, 100, 0.3)' 
                 : 'linear-gradient(135deg, #2c5364, #203a43)',
               color: 'white',
@@ -883,19 +914,19 @@ const AIPanel = forwardRef(({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: !inputMessage.trim() || isTyping || showCustomPrompt
+              cursor: isTyping || (showCustomPrompt ? !customPrompt.trim() : !inputMessage.trim())
                 ? 'not-allowed' 
                 : 'pointer',
               transition: 'all 0.2s ease',
               flexShrink: 0,
             }}
             onMouseEnter={(e) => {
-              if (inputMessage.trim() && !isTyping && !showCustomPrompt) {
+              if ((showCustomPrompt ? customPrompt.trim() : inputMessage.trim()) && !isTyping) {
                 e.currentTarget.style.background = 'linear-gradient(135deg, #3a7a9e, #2c5364)';
               }
             }}
             onMouseLeave={(e) => {
-              if (inputMessage.trim() && !isTyping && !showCustomPrompt) {
+              if ((showCustomPrompt ? customPrompt.trim() : inputMessage.trim()) && !isTyping) {
                 e.currentTarget.style.background = 'linear-gradient(135deg, #2c5364, #203a43)';
               }
             }}

@@ -7,16 +7,19 @@ const App = () => {
   const [pdfPath, setPdfPath] = useState(null);
   const [selectedText, setSelectedText] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('simple');
+  const [selectedLocation, setSelectedLocation] = useState(null);
   const [showLanding, setShowLanding] = useState(true);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
   const [newChatCount, setNewChatCount] = useState(0);
   const aiPanelRef = useRef(null);
+  const pdfViewerRef = useRef(null);
 
   const handleNewChat = () => {
     setShowAIPanel(true);
     setSelectedText('');
     setSelectedStyle('simple');
+    setSelectedLocation(null);
     setCustomPrompt('');
     if (aiPanelRef.current && aiPanelRef.current.switchToEmptyChat) {
       const switched = aiPanelRef.current.switchToEmptyChat();
@@ -37,9 +40,10 @@ const App = () => {
     }
   };
 
-  const handleTextSelected = (text, style = 'default') => {
+  const handleTextSelected = (text, style = 'default', locationData) => {
     setSelectedText(text);
     setSelectedStyle(style);
+    setSelectedLocation(locationData);
     
     // Always open panel for any style, including default
     setShowAIPanel(true);
@@ -48,12 +52,31 @@ const App = () => {
   const handleBackToLanding = () => {
     setPdfPath(null);
     setSelectedText('');
+    setSelectedLocation(null);
     setShowAIPanel(false);
     setShowLanding(true);
   };
 
   const handleCloseAIPanel = () => {
     setShowAIPanel(false);
+  };
+
+  const handleGoToHighlight = (locationToScrollTo) => {
+    const targetLocation = locationToScrollTo !== undefined ? locationToScrollTo : selectedLocation;
+
+    if (pdfViewerRef.current && targetLocation) {
+      if (typeof pdfViewerRef.current.scrollToHighlight === 'function') {
+        pdfViewerRef.current.scrollToHighlight(targetLocation);
+      } else {
+        console.warn('PDFViewer ref does not have scrollToHighlight method');
+      }
+    } else {
+      if (!targetLocation) {
+        console.log('handleGoToHighlight: No highlight selected yet.');
+      } else {
+        console.warn('handleGoToHighlight called without targetLocation or PDFViewer ref');
+      }
+    }
   };
 
   return (
@@ -182,12 +205,17 @@ const App = () => {
               transition: 'width 0.3s ease',
             }}>
               <PDFViewer 
+                ref={pdfViewerRef}
                 filePath={pdfPath} 
                 onTextSelected={handleTextSelected}
                 pdfContentStyle={{
                   marginLeft: showAIPanel ? '-600px' : '0',
                   transition: 'margin-left 0.3s ease',
                 }}
+                setCustomPrompt={setCustomPrompt}
+                onClose={handleCloseAIPanel}
+                newChatCount={newChatCount}
+                onGoToHighlight={handleGoToHighlight}
               />
             </div>
             
@@ -212,6 +240,8 @@ const App = () => {
                 setCustomPrompt={setCustomPrompt}
                 onClose={handleCloseAIPanel}
                 newChatCount={newChatCount}
+                onGoToHighlight={handleGoToHighlight}
+                selectedLocation={selectedLocation}
               />
             </div>
           </div>

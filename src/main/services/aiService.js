@@ -121,7 +121,7 @@ const callAiApi = async (promptOrMessages, modelConfig, isChat = false, streamCa
     const lastUserMessage = promptOrMessages.filter(m => m.role === 'user').pop();
     return `(Simulated) AI thinks about: "${lastUserMessage ? lastUserMessage.content.substring(0, 40) : 'your message'}"`;
   } else {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 1000));
     return `(Simulated) Detailed thoughts on: "${promptOrMessages.substring(0, 60)}..."`;
   }
 };
@@ -181,25 +181,35 @@ async function explainTextAndStream(text, style, streamId, streamChunkCallback) 
         return;
     }
 
-    // Get system prompt from aiConfig
-    const systemPrompt = aiConfig.getExplanationSystemPrompt(style);
-    const modelConfig = aiConfig.modelConfigs.defaultCompletion; // Use default completion config
+    let systemPrompt = "You are a helpful AI assistant.";
+    if (style === 'Summarize') {
+        systemPrompt = "You are an expert summarizer. Provide a concise summary of the following text.";
+    } else if (style === 'Explain simply') {
+        systemPrompt = "You are an expert at explaining complex topics simply. Explain the following text in a very easy to understand way, as if to a beginner.";
+    } else if (style === 'Funny analogy') {
+        systemPrompt = "You are an AI with a great sense of humor. Explain the following text using a creative and funny analogy.";
+    } else if (style === 'Expand') {
+        systemPrompt = "You are an AI that elaborates on topics. Expand on the following text, providing more detail, context, and examples.";
+    } else {
+        // Use the custom prompt directly if it's not a predefined style
+        systemPrompt = style;
+    }
 
     const messages = [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Please address the following text:\n\n${text}` } // Text still goes in user message
+        { role: "user", content: `Please address the following text:\n\n${text}` }
     ];
 
     try {
-        console.log(`aiService.explainTextAndStream: Attempting OpenAI API call for streamId: ${streamId} with style: ${style}`);
-        // No more "Contacting AI..." status from here
+        console.log(`aiService.explainTextAndStream: Attempting OpenAI API call for streamId: ${streamId}`);
+        // streamChunkCallback({ streamId, type: 'status', content: 'Contacting AI for explanation...' });
 
         const stream = await openai.chat.completions.create({
-            model: modelConfig.model,
+            model: "gpt-3.5-turbo",
             messages: messages,
             stream: true,
-            temperature: modelConfig.temperature,
-            max_tokens: modelConfig.max_tokens,
+            temperature: 0.7,
+            max_tokens: 500,
         });
 
         for await (const chunk of stream) {
@@ -245,28 +255,23 @@ async function startChatStream(messages, streamId, streamChunkCallback) {
         return;
     }
 
-    const modelConfig = aiConfig.modelConfigs.defaultChat; // Use default chat config
-
     const formattedMessages = messages.map(msg => ({
         role: msg.role,
         content: msg.content
     }));
-
-    // Add default system prompt if no system message is already in the history
     if (!formattedMessages.find(m => m.role === 'system')) {
-        formattedMessages.unshift({ role: "system", content: aiConfig.defaultChatSystemPrompt });
+        formattedMessages.unshift({ role: "system", content: "You are a helpful AI assistant." });
     }
 
     try {
         console.log(`aiService.startChatStream: Attempting OpenAI API call for streamId: ${streamId}`);
-        // No more "Contacting AI..." status from here
+        // streamChunkCallback({ streamId, type: 'status', content: 'Contacting AI for chat...' });
 
         const stream = await openai.chat.completions.create({
-            model: modelConfig.model,
+            model: "gpt-3.5-turbo",
             messages: formattedMessages,
             stream: true,
-            temperature: modelConfig.temperature,
-            // max_tokens: modelConfig.max_tokens, // Often omitted for chat, or use a specific chat max_tokens
+            temperature: 0.7,
         });
 
         for await (const chunk of stream) {
@@ -350,24 +355,3 @@ module.exports = {
     explainTextAndStream,
     startChatStream
 };
-
-// Example of how to use it (for testing purposes, you'd call this from your main process logic)
-/*
-(async () => {
-  try {
-    const explanation = await aiService.explainText("This is a test sentence.", "Summarize briefly");
-    console.log("Explanation:", explanation);
-
-    const explanationError = await aiService.explainText("error_test", "This should fail");
-    console.log("Explanation (error):", explanationError); // This line shouldn't be reached
-  } catch (error) {
-    console.error("Caught error during example usage:", error.message);
-  }
-
-  try {
-    await aiService.explainText(null, "Prompt");
-  } catch (error) {
-    console.error("Caught error during example usage (missing text):", error.message);
-  }
-})();
-*/
