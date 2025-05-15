@@ -1,0 +1,4769 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+src/
+  main/
+    config/
+      aiConfig.js
+    services/
+      aiService.js
+    main.js
+    preload.js
+  renderer/
+    components/
+      AIPanel.jsx
+      App.jsx
+      highlight-fixes.css
+      LandingPage.jsx
+      PDFViewer.jsx
+      ReaderWithChat.jsx
+    index.html
+    index.js
+  state/
+    hooks/
+      index.js
+      useChatActions.js
+      usePdfActions.js
+      useUIActions.js
+      useUserPreferences.js
+    slices/
+      __tests__/
+        pdfSlice.test.js
+      chatSlice.js
+      pdfSlice.js
+      uiSlice.js
+      userSlice.js
+    store.js
+.gitignore
+LICENSE
+package.json
+README.md
+webpack.config.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/renderer/index.js">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './components/App';
+
+// Create root and render the App
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</file>
+
+<file path="src/state/hooks/index.js">
+export { usePdfActions } from './usePdfActions';
+export { useChatActions } from './useChatActions';
+export { useUIActions } from './useUIActions';
+export { useUserPreferences } from './useUserPreferences';
+</file>
+
+<file path="src/state/hooks/useChatActions.js">
+import { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  addSession,
+  setCurrentSession,
+  removeSession,
+  addUserMessage,
+  addAIMessage,
+  setIsTyping,
+  setSelectedStyle,
+  setCustomPrompt,
+  clearCurrentChat,
+  renameSession,
+} from '../slices/chatSlice';
+
+export const useChatActions = () => {
+  const dispatch = useDispatch();
+  const {
+    sessions,
+    currentSessionIndex,
+    isTyping,
+    selectedStyle,
+    customPrompt,
+  } = useSelector((state) => state.chat);
+
+  const currentSession = sessions[currentSessionIndex];
+
+  const createNewChat = useCallback(() => {
+    dispatch(addSession());
+  }, [dispatch]);
+
+  const switchChat = useCallback((index) => {
+    dispatch(setCurrentSession(index));
+  }, [dispatch]);
+
+  const deleteChat = useCallback((index) => {
+    dispatch(removeSession(index));
+  }, [dispatch]);
+
+  const sendUserMessage = useCallback((text) => {
+    dispatch(addUserMessage({ text }));
+  }, [dispatch]);
+
+  const sendAIMessage = useCallback((text, isError = false) => {
+    dispatch(addAIMessage({ text, isError }));
+  }, [dispatch]);
+
+  const setTypingStatus = useCallback((status) => {
+    dispatch(setIsTyping(status));
+  }, [dispatch]);
+
+  const changeSelectedStyle = useCallback((style) => {
+    dispatch(setSelectedStyle(style));
+  }, [dispatch]);
+
+  const updateCustomPrompt = useCallback((prompt) => {
+    dispatch(setCustomPrompt(prompt));
+  }, [dispatch]);
+
+  const clearChat = useCallback(() => {
+    dispatch(clearCurrentChat());
+  }, [dispatch]);
+
+  const renameChat = useCallback((index, title) => {
+    dispatch(renameSession({ index, title }));
+  }, [dispatch]);
+
+  // Helper function to find an empty chat session
+  const findEmptyChat = useCallback(() => {
+    const emptyIndex = sessions.findIndex(session => session.messages.length === 0);
+    return emptyIndex;
+  }, [sessions]);
+
+  // Switch to an empty chat or create a new one if none exists
+  const switchToEmptyChat = useCallback(() => {
+    const emptyIndex = findEmptyChat();
+    if (emptyIndex !== -1) {
+      dispatch(setCurrentSession(emptyIndex));
+      return true;
+    } else {
+      dispatch(addSession());
+      return true;
+    }
+  }, [dispatch, findEmptyChat]);
+
+  return {
+    // State
+    sessions,
+    currentSessionIndex,
+    currentSession,
+    isTyping,
+    selectedStyle,
+    customPrompt,
+    
+    // Actions
+    createNewChat,
+    switchChat,
+    deleteChat,
+    sendUserMessage,
+    sendAIMessage,
+    setTypingStatus,
+    changeSelectedStyle,
+    updateCustomPrompt,
+    clearChat,
+    renameChat,
+    findEmptyChat,
+    switchToEmptyChat,
+  };
+};
+</file>
+
+<file path="src/state/hooks/usePdfActions.js">
+import { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  setPdfPath,
+  setPdfDocument,
+  setCurrentPage,
+  setTotalPages,
+  setScale,
+  setSelectedText,
+  setLoading,
+  setLoadingStatus,
+  setError,
+  resetPdfState,
+  removeRecentDocument,
+  clearRecentDocuments,
+} from '../slices/pdfSlice';
+
+export const usePdfActions = () => {
+  const dispatch = useDispatch();
+  const {
+    filePath,
+    pdfDocument,
+    currentPage,
+    totalPages,
+    scale,
+    selectedText,
+    recentDocuments,
+    loading,
+    loadingStatus,
+    error,
+  } = useSelector((state) => state.pdf);
+
+  const openPdf = useCallback((path) => {
+    dispatch(setPdfPath(path));
+  }, [dispatch]);
+
+  const setPdf = useCallback((document) => {
+    dispatch(setPdfDocument(document));
+  }, [dispatch]);
+
+  const goToPage = useCallback((pageNumber) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      dispatch(setCurrentPage(pageNumber));
+    }
+  }, [dispatch, totalPages]);
+
+  const nextPage = useCallback(() => {
+    if (currentPage < totalPages) {
+      dispatch(setCurrentPage(currentPage + 1));
+    }
+  }, [dispatch, currentPage, totalPages]);
+
+  const prevPage = useCallback(() => {
+    if (currentPage > 1) {
+      dispatch(setCurrentPage(currentPage - 1));
+    }
+  }, [dispatch, currentPage]);
+
+  const zoomIn = useCallback(() => {
+    dispatch(setScale(scale * 1.1));
+  }, [dispatch, scale]);
+
+  const zoomOut = useCallback(() => {
+    dispatch(setScale(scale / 1.1));
+  }, [dispatch, scale]);
+
+  const resetZoom = useCallback(() => {
+    dispatch(setScale(1.5)); // Reset to default zoom
+  }, [dispatch]);
+
+  const selectText = useCallback((text) => {
+    dispatch(setSelectedText(text));
+  }, [dispatch]);
+
+  const setLoadingState = useCallback((isLoading, status = '') => {
+    dispatch(setLoading(isLoading));
+    dispatch(setLoadingStatus(status));
+  }, [dispatch]);
+
+  const setErrorState = useCallback((errorMessage) => {
+    dispatch(setError(errorMessage));
+  }, [dispatch]);
+
+  const resetState = useCallback(() => {
+    dispatch(resetPdfState());
+  }, [dispatch]);
+
+  const removeRecent = useCallback((path) => {
+    dispatch(removeRecentDocument(path));
+  }, [dispatch]);
+
+  const clearRecent = useCallback(() => {
+    dispatch(clearRecentDocuments());
+  }, [dispatch]);
+
+  return {
+    // State
+    filePath,
+    pdfDocument,
+    currentPage,
+    totalPages,
+    scale,
+    selectedText,
+    recentDocuments,
+    loading,
+    loadingStatus,
+    error,
+    
+    // Actions
+    openPdf,
+    setPdf,
+    goToPage,
+    nextPage,
+    prevPage,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    selectText,
+    setLoadingState,
+    setErrorState,
+    resetState,
+    removeRecent,
+    clearRecent,
+  };
+};
+</file>
+
+<file path="src/state/hooks/useUIActions.js">
+import { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  setShowLanding,
+  setShowAIPanel,
+  setShowStyleChooser,
+  setShowCustomPrompt,
+  toggleDarkMode,
+  setDarkMode,
+  toggleMenu,
+  setMenuOpen,
+  setSidebarWidth,
+  resetUI,
+} from '../slices/uiSlice';
+
+export const useUIActions = () => {
+  const dispatch = useDispatch();
+  const {
+    showLanding,
+    showAIPanel,
+    showStyleChooser,
+    showCustomPrompt,
+    darkMode,
+    menuOpen,
+    sidebarWidth,
+  } = useSelector((state) => state.ui);
+
+  const navigateToLanding = useCallback(() => {
+    dispatch(setShowLanding(true));
+    dispatch(setShowAIPanel(false));
+  }, [dispatch]);
+
+  const navigateToPdfViewer = useCallback(() => {
+    dispatch(setShowLanding(false));
+  }, [dispatch]);
+
+  const toggleAIPanel = useCallback(() => {
+    dispatch(setShowAIPanel(!showAIPanel));
+  }, [dispatch, showAIPanel]);
+
+  const openAIPanel = useCallback(() => {
+    dispatch(setShowAIPanel(true));
+  }, [dispatch]);
+
+  const closeAIPanel = useCallback(() => {
+    dispatch(setShowAIPanel(false));
+  }, [dispatch]);
+
+  const toggleStyleChooser = useCallback(() => {
+    dispatch(setShowStyleChooser(!showStyleChooser));
+  }, [dispatch, showStyleChooser]);
+
+  const showStyleChooserPanel = useCallback((show) => {
+    dispatch(setShowStyleChooser(show));
+  }, [dispatch]);
+
+  const toggleCustomPromptPanel = useCallback(() => {
+    dispatch(setShowCustomPrompt(!showCustomPrompt));
+  }, [dispatch, showCustomPrompt]);
+
+  const showCustomPromptPanel = useCallback((show) => {
+    dispatch(setShowCustomPrompt(show));
+  }, [dispatch]);
+
+  const switchTheme = useCallback(() => {
+    dispatch(toggleDarkMode());
+  }, [dispatch]);
+
+  const setTheme = useCallback((isDark) => {
+    dispatch(setDarkMode(isDark));
+  }, [dispatch]);
+
+  const toggleSidebar = useCallback(() => {
+    dispatch(toggleMenu());
+  }, [dispatch]);
+
+  const showSidebar = useCallback((show) => {
+    dispatch(setMenuOpen(show));
+  }, [dispatch]);
+
+  const resizeSidebar = useCallback((width) => {
+    dispatch(setSidebarWidth(width));
+  }, [dispatch]);
+
+  const resetUIState = useCallback(() => {
+    dispatch(resetUI());
+  }, [dispatch]);
+
+  return {
+    // State
+    showLanding,
+    showAIPanel,
+    showStyleChooser,
+    showCustomPrompt,
+    darkMode,
+    menuOpen,
+    sidebarWidth,
+    
+    // Actions
+    navigateToLanding,
+    navigateToPdfViewer,
+    toggleAIPanel,
+    openAIPanel,
+    closeAIPanel,
+    toggleStyleChooser,
+    showStyleChooserPanel,
+    toggleCustomPromptPanel,
+    showCustomPromptPanel,
+    switchTheme,
+    setTheme,
+    toggleSidebar,
+    showSidebar,
+    resizeSidebar,
+    resetUIState,
+  };
+};
+</file>
+
+<file path="src/state/hooks/useUserPreferences.js">
+import { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  setDefaultExplanationStyle,
+  setDefaultScale,
+  setFontSizePDF,
+  setAIResponseStyle,
+  setAutoOpenAIPanel,
+  setSmoothScrolling,
+  setConfirmBeforeClosing,
+  updatePreferences,
+  updateSettings,
+  resetUserPreferences,
+  resetUserSettings,
+  resetUserState,
+} from '../slices/userSlice';
+
+export const useUserPreferences = () => {
+  const dispatch = useDispatch();
+  const { preferences, settings } = useSelector((state) => state.user);
+
+  // Preferences actions
+  const changeExplanationStyle = useCallback((style) => {
+    dispatch(setDefaultExplanationStyle(style));
+  }, [dispatch]);
+
+  const changeDefaultScale = useCallback((scale) => {
+    dispatch(setDefaultScale(scale));
+  }, [dispatch]);
+
+  const changeFontSize = useCallback((size) => {
+    dispatch(setFontSizePDF(size));
+  }, [dispatch]);
+
+  const changeAIResponseStyle = useCallback((style) => {
+    dispatch(setAIResponseStyle(style));
+  }, [dispatch]);
+
+  const updateAllPreferences = useCallback((newPreferences) => {
+    dispatch(updatePreferences(newPreferences));
+  }, [dispatch]);
+
+  const resetPreferences = useCallback(() => {
+    dispatch(resetUserPreferences());
+  }, [dispatch]);
+
+  // Settings actions
+  const toggleAutoOpenAIPanel = useCallback(() => {
+    dispatch(setAutoOpenAIPanel(!settings.autoOpenAIPanel));
+  }, [dispatch, settings.autoOpenAIPanel]);
+
+  const setAutoOpen = useCallback((autoOpen) => {
+    dispatch(setAutoOpenAIPanel(autoOpen));
+  }, [dispatch]);
+
+  const toggleSmoothScrolling = useCallback(() => {
+    dispatch(setSmoothScrolling(!settings.smoothScrolling));
+  }, [dispatch, settings.smoothScrolling]);
+
+  const setSmoothScroll = useCallback((smoothScroll) => {
+    dispatch(setSmoothScrolling(smoothScroll));
+  }, [dispatch]);
+
+  const toggleConfirmBeforeClosing = useCallback(() => {
+    dispatch(setConfirmBeforeClosing(!settings.confirmBeforeClosing));
+  }, [dispatch, settings.confirmBeforeClosing]);
+
+  const setConfirmClose = useCallback((confirmClose) => {
+    dispatch(setConfirmBeforeClosing(confirmClose));
+  }, [dispatch]);
+
+  const updateAllSettings = useCallback((newSettings) => {
+    dispatch(updateSettings(newSettings));
+  }, [dispatch]);
+
+  const resetSettings = useCallback(() => {
+    dispatch(resetUserSettings());
+  }, [dispatch]);
+
+  // Reset all user state
+  const resetAll = useCallback(() => {
+    dispatch(resetUserState());
+  }, [dispatch]);
+
+  return {
+    // State
+    preferences,
+    settings,
+    
+    // Preference actions
+    changeExplanationStyle,
+    changeDefaultScale,
+    changeFontSize,
+    changeAIResponseStyle,
+    updateAllPreferences,
+    resetPreferences,
+    
+    // Settings actions
+    toggleAutoOpenAIPanel,
+    setAutoOpen,
+    toggleSmoothScrolling,
+    setSmoothScroll,
+    toggleConfirmBeforeClosing,
+    setConfirmClose,
+    updateAllSettings,
+    resetSettings,
+    
+    // Combined actions
+    resetAll,
+  };
+};
+</file>
+
+<file path="src/state/slices/__tests__/pdfSlice.test.js">
+import { pdfSlice, setPdfPath, setCurrentPage, setScale } from '../pdfSlice';
+
+describe('pdfSlice', () => {
+  const initialState = {
+    filePath: null,
+    pdfDocument: null,
+    currentPage: 1,
+    totalPages: 0,
+    scale: 1.5,
+    selectedText: '',
+    recentDocuments: [],
+    loading: false,
+    loadingStatus: '',
+    error: null,
+  };
+
+  test('should return the initial state', () => {
+    expect(pdfSlice.reducer(undefined, { type: undefined })).toEqual(initialState);
+  });
+
+  test('should set PDF path', () => {
+    const filePath = '/path/to/test.pdf';
+    const newState = pdfSlice.reducer(initialState, setPdfPath(filePath));
+    
+    expect(newState.filePath).toBe(filePath);
+    expect(newState.recentDocuments).toContain(filePath);
+  });
+
+  test('should keep recent documents unique', () => {
+    const filePath = '/path/to/test.pdf';
+    
+    // Add the same file path twice
+    let state = pdfSlice.reducer(initialState, setPdfPath(filePath));
+    state = pdfSlice.reducer(state, setPdfPath(filePath));
+    
+    expect(state.recentDocuments.length).toBe(1);
+    expect(state.recentDocuments).toEqual([filePath]);
+  });
+
+  test('should update current page', () => {
+    const newState = pdfSlice.reducer(initialState, setCurrentPage(5));
+    
+    expect(newState.currentPage).toBe(5);
+  });
+
+  test('should update scale', () => {
+    const newState = pdfSlice.reducer(initialState, setScale(2.0));
+    
+    expect(newState.scale).toBe(2.0);
+  });
+});
+</file>
+
+<file path="src/state/slices/chatSlice.js">
+import { createSlice } from '@reduxjs/toolkit';
+
+// Helper function to generate a simple UUID for chat sessions
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const initialState = {
+  sessions: [
+    { id: generateId(), title: 'Chat 1', messages: [] }
+  ],
+  currentSessionIndex: 0,
+  isTyping: false,
+  selectedStyle: 'simple',
+  customPrompt: '',
+  sessionCount: 1,
+};
+
+export const chatSlice = createSlice({
+  name: 'chat',
+  initialState,
+  reducers: {
+    addSession: (state) => {
+      const newSessionCount = state.sessionCount + 1;
+      const newSession = {
+        id: generateId(),
+        title: `Chat ${newSessionCount}`,
+        messages: []
+      };
+      state.sessions.push(newSession);
+      state.currentSessionIndex = state.sessions.length - 1;
+      state.sessionCount = newSessionCount;
+    },
+    setCurrentSession: (state, action) => {
+      state.currentSessionIndex = action.payload;
+    },
+    removeSession: (state, action) => {
+      // If there's only one session, just clear its messages
+      if (state.sessions.length <= 1) {
+        state.sessions = [{ id: generateId(), title: 'Chat 1', messages: [] }];
+        state.currentSessionIndex = 0;
+        return;
+      }
+      
+      const indexToRemove = action.payload !== undefined 
+        ? action.payload 
+        : state.currentSessionIndex;
+      
+      state.sessions = state.sessions.filter((_, index) => index !== indexToRemove);
+      
+      // Update titles for remaining sessions
+      state.sessions = state.sessions.map((session, index) => ({
+        ...session,
+        title: `Chat ${index + 1}`
+      }));
+      
+      // Adjust current index if needed
+      if (state.currentSessionIndex >= state.sessions.length) {
+        state.currentSessionIndex = state.sessions.length - 1;
+      }
+    },
+    addUserMessage: (state, action) => {
+      const { text } = action.payload;
+      state.sessions[state.currentSessionIndex].messages.push({
+        id: Date.now(),
+        type: 'user',
+        content: text,
+        timestamp: new Date().toISOString()
+      });
+    },
+    addAIMessage: (state, action) => {
+      const { text, isError = false } = action.payload;
+      state.sessions[state.currentSessionIndex].messages.push({
+        id: Date.now(),
+        type: 'ai',
+        content: text,
+        timestamp: new Date().toISOString(),
+        isError
+      });
+    },
+    setIsTyping: (state, action) => {
+      state.isTyping = action.payload;
+    },
+    setSelectedStyle: (state, action) => {
+      state.selectedStyle = action.payload;
+    },
+    setCustomPrompt: (state, action) => {
+      state.customPrompt = action.payload;
+    },
+    clearCurrentChat: (state) => {
+      state.sessions[state.currentSessionIndex].messages = [];
+    },
+    renameSession: (state, action) => {
+      const { index, title } = action.payload;
+      state.sessions[index].title = title;
+    },
+  },
+});
+
+export const {
+  addSession,
+  setCurrentSession,
+  removeSession,
+  addUserMessage,
+  addAIMessage,
+  setIsTyping,
+  setSelectedStyle,
+  setCustomPrompt,
+  clearCurrentChat,
+  renameSession,
+} = chatSlice.actions;
+
+export default chatSlice.reducer;
+</file>
+
+<file path="src/state/slices/pdfSlice.js">
+import { createSlice } from '@reduxjs/toolkit';
+
+const initialState = {
+  filePath: null,
+  pdfDocument: null,
+  currentPage: 1,
+  totalPages: 0,
+  scale: 1.5,
+  selectedText: '',
+  recentDocuments: [], // Store recently opened documents
+  loading: false,
+  loadingStatus: '',
+  error: null,
+};
+
+export const pdfSlice = createSlice({
+  name: 'pdf',
+  initialState,
+  reducers: {
+    setPdfPath: (state, action) => {
+      state.filePath = action.payload;
+      // Add to recent documents if not already present
+      if (action.payload && !state.recentDocuments.includes(action.payload)) {
+        state.recentDocuments = [
+          action.payload,
+          ...state.recentDocuments.filter(path => path !== action.payload)
+        ].slice(0, 10); // Keep only the 10 most recent
+      }
+    },
+    setPdfDocument: (state, action) => {
+      state.pdfDocument = action.payload;
+    },
+    setCurrentPage: (state, action) => {
+      state.currentPage = action.payload;
+    },
+    setTotalPages: (state, action) => {
+      state.totalPages = action.payload;
+    },
+    setScale: (state, action) => {
+      state.scale = action.payload;
+    },
+    setSelectedText: (state, action) => {
+      state.selectedText = action.payload;
+    },
+    setLoading: (state, action) => {
+      state.loading = action.payload;
+    },
+    setLoadingStatus: (state, action) => {
+      state.loadingStatus = action.payload;
+    },
+    setError: (state, action) => {
+      state.error = action.payload;
+    },
+    resetPdfState: (state) => {
+      return {
+        ...initialState,
+        recentDocuments: state.recentDocuments, // Preserve recent documents
+      };
+    },
+    removeRecentDocument: (state, action) => {
+      state.recentDocuments = state.recentDocuments.filter(
+        path => path !== action.payload
+      );
+    },
+    clearRecentDocuments: (state) => {
+      state.recentDocuments = [];
+    },
+  },
+});
+
+export const {
+  setPdfPath,
+  setPdfDocument,
+  setCurrentPage,
+  setTotalPages,
+  setScale,
+  setSelectedText,
+  setLoading,
+  setLoadingStatus,
+  setError,
+  resetPdfState,
+  removeRecentDocument,
+  clearRecentDocuments,
+} = pdfSlice.actions;
+
+export default pdfSlice.reducer;
+</file>
+
+<file path="src/state/slices/uiSlice.js">
+import { createSlice } from '@reduxjs/toolkit';
+
+const initialState = {
+  showLanding: true,
+  showAIPanel: false,
+  showStyleChooser: false, 
+  showCustomPrompt: false,
+  darkMode: true, // Default to dark mode based on current app styling
+  menuOpen: false,
+  sidebarWidth: 600, // Current width of the AI panel in pixels
+};
+
+export const uiSlice = createSlice({
+  name: 'ui',
+  initialState,
+  reducers: {
+    setShowLanding: (state, action) => {
+      state.showLanding = action.payload;
+    },
+    setShowAIPanel: (state, action) => {
+      state.showAIPanel = action.payload;
+    },
+    setShowStyleChooser: (state, action) => {
+      state.showStyleChooser = action.payload;
+    },
+    setShowCustomPrompt: (state, action) => {
+      state.showCustomPrompt = action.payload;
+    },
+    toggleDarkMode: (state) => {
+      state.darkMode = !state.darkMode;
+    },
+    setDarkMode: (state, action) => {
+      state.darkMode = action.payload;
+    },
+    toggleMenu: (state) => {
+      state.menuOpen = !state.menuOpen;
+    },
+    setMenuOpen: (state, action) => {
+      state.menuOpen = action.payload;
+    },
+    setSidebarWidth: (state, action) => {
+      state.sidebarWidth = action.payload;
+    },
+    resetUI: (state) => {
+      return initialState;
+    },
+  },
+});
+
+export const {
+  setShowLanding,
+  setShowAIPanel,
+  setShowStyleChooser,
+  setShowCustomPrompt,
+  toggleDarkMode,
+  setDarkMode,
+  toggleMenu,
+  setMenuOpen,
+  setSidebarWidth,
+  resetUI,
+} = uiSlice.actions;
+
+export default uiSlice.reducer;
+</file>
+
+<file path="src/state/slices/userSlice.js">
+import { createSlice } from '@reduxjs/toolkit';
+
+const initialState = {
+  preferences: {
+    defaultExplanationStyle: 'simple', // simple, detailed, technical
+    defaultScale: 1.5, // Default zoom level
+    fontSizePDF: 'medium', // small, medium, large
+    aiResponseStyle: 'conversational', // conversational, concise, academic
+  },
+  settings: {
+    autoOpenAIPanel: true, // Automatically open AI panel when text is selected
+    smoothScrolling: true,
+    confirmBeforeClosing: true,
+  },
+};
+
+export const userSlice = createSlice({
+  name: 'user',
+  initialState,
+  reducers: {
+    setDefaultExplanationStyle: (state, action) => {
+      state.preferences.defaultExplanationStyle = action.payload;
+    },
+    setDefaultScale: (state, action) => {
+      state.preferences.defaultScale = action.payload;
+    },
+    setFontSizePDF: (state, action) => {
+      state.preferences.fontSizePDF = action.payload;
+    },
+    setAIResponseStyle: (state, action) => {
+      state.preferences.aiResponseStyle = action.payload;
+    },
+    setAutoOpenAIPanel: (state, action) => {
+      state.settings.autoOpenAIPanel = action.payload;
+    },
+    setSmoothScrolling: (state, action) => {
+      state.settings.smoothScrolling = action.payload;
+    },
+    setConfirmBeforeClosing: (state, action) => {
+      state.settings.confirmBeforeClosing = action.payload;
+    },
+    updatePreferences: (state, action) => {
+      state.preferences = {
+        ...state.preferences,
+        ...action.payload,
+      };
+    },
+    updateSettings: (state, action) => {
+      state.settings = {
+        ...state.settings,
+        ...action.payload,
+      };
+    },
+    resetUserPreferences: (state) => {
+      state.preferences = initialState.preferences;
+    },
+    resetUserSettings: (state) => {
+      state.settings = initialState.settings;
+    },
+    resetUserState: (state) => {
+      return initialState;
+    },
+  },
+});
+
+export const {
+  setDefaultExplanationStyle,
+  setDefaultScale,
+  setFontSizePDF,
+  setAIResponseStyle,
+  setAutoOpenAIPanel,
+  setSmoothScrolling,
+  setConfirmBeforeClosing,
+  updatePreferences,
+  updateSettings,
+  resetUserPreferences,
+  resetUserSettings,
+  resetUserState,
+} = userSlice.actions;
+
+export default userSlice.reducer;
+</file>
+
+<file path="src/state/store.js">
+import { configureStore } from '@reduxjs/toolkit';
+import pdfReducer from './slices/pdfSlice';
+import chatReducer from './slices/chatSlice';
+import uiReducer from './slices/uiSlice';
+import userReducer from './slices/userSlice';
+
+export const store = configureStore({
+  reducer: {
+    pdf: pdfReducer,
+    chat: chatReducer,
+    ui: uiReducer,
+    user: userReducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        // Ignore these action types as they might contain non-serializable data
+        ignoredActions: ['pdf/setPdfDocument'],
+        // Ignore these paths in the state
+        ignoredPaths: ['pdf.pdfDocument'],
+      },
+    }),
+  devTools: process.env.NODE_ENV !== 'production',
+});
+
+export default store;
+</file>
+
+<file path=".gitignore">
+# Node deps
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Local PDF.js fork (we'll use pdfjs-dist)
+pdf.js-fork/
+
+# Old scripts
+*.sh
+
+# Patch files
+*.patch
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Electron packaging
+build/
+out/
+
+# Backup files
+*.bak
+*~
+*.tmp
+*.swp
+
+# Build statistics
+stats.json
+</file>
+
+<file path="LICENSE">
+MIT License
+
+Copyright (c) 2023 [Your Name]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</file>
+
+<file path="package.json">
+{
+  "name": "ai-pdf-reader",
+  "version": "1.0.0",
+  "description": "AI-enhanced PDF reader that explains highlighted text",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "ELECTRON_DISABLE_SANDBOX=1 ./node_modules/.bin/electron .",
+    "dev": "webpack --watch",
+    "build": "webpack --mode production",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "openai": "^4.98.0",
+    "pdfjs-dist": "^5.2.133",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.10",
+    "@babel/preset-env": "^7.26.9",
+    "@babel/preset-react": "^7.26.3",
+    "babel-loader": "^9.1.3",
+    "css-loader": "^7.1.2",
+    "electron": "^35.2.1",
+    "electron-builder": "^26.0.12",
+    "html-webpack-plugin": "^5.6.3",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.99.7"
+  },
+  "build": {
+    "appId": "com.yourname.ai-pdf-reader",
+    "productName": "AI PDF Reader",
+    "files": [
+      "dist/**/*",
+      "src/main/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "resources",
+      "output": "build"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  }
+}
+</file>
+
+<file path="webpack.config.js">
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+
+module.exports = {
+  mode: 'development',
+  entry: './src/renderer/index.js',
+  target: 'electron-renderer',
+  output: {
+    filename: 'renderer.js',
+    path: path.resolve(__dirname, 'dist'),
+  },
+  module: {
+    rules: [
+      {
+        test: /\.(js|jsx)$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['@babel/preset-env', '@babel/preset-react'],
+          },
+        },
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
+      },
+    ],
+  },
+  resolve: {
+    extensions: ['.js', '.jsx'],
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: './src/renderer/index.html',
+    }),
+  ],
+};
+</file>
+
+<file path="src/main/config/aiConfig.js">
+const aiConfig = {
+  // Default model configurations
+  model_configs: {
+    default_chat: {
+      model: "gpt-3.5-turbo", // Default model for chat and explanations
+      temperature: 0.7,       // Default creativity/randomness
+      max_tokens: 1000,       // Default max length of the response
+    },
+    // }
+  },
+
+  // System prompts for different explanation styles
+  // The '{text}' placeholder will be replaced with the actual selected text by aiService.js
+  explanation_system_prompts: {
+    default: "You are a helpful AI assistant. Please address the following text:",
+    Summarize: "You are an expert summarizer. Provide a concise summary of the following text:",
+    "Explain simply": "You are an expert at explaining complex topics simply. Explain the following text in a very easy to understand way, as if to a beginner:",
+    "Funny analogy": "You are an AI with a great sense of humor. Explain the following text using a creative and funny analogy:",
+    Expand: "You are an AI that elaborates on topics. Expand on the following text, providing more detail, context, and examples:",
+  },
+
+  // Default system prompt for general chat interactions
+  chat_default_system_prompt: "You are a helpful AI assistant. Engage in a natural conversation."
+};
+
+module.exports = aiConfig;
+</file>
+
+<file path="src/main/main.js">
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const aiService = require('./services/aiService.js');
+
+// --- Simple In-Memory Cache for Explanations ---
+const explanationCache = new Map();
+const CACHE_MAX_SIZE = 100; // Optional: Limit cache size
+const CACHE_EXPIRY_MS = 1000 * 60 * 60; // Optional: Cache entries expire after 1 hour
+
+// Keep a global reference of the window object
+let mainWindow;
+
+console.log(">>>> INSPECTING aiService in main.js:", aiService);
+if (aiService) {
+    console.log(">>>> aiService.explainTextAndStream type:", typeof aiService.explainTextAndStream);
+    console.log(">>>> aiService.startChatStream type:", typeof aiService.startChatStream);
+} else {
+    console.error(">>>> CRITICAL: aiService is undefined in main.js after require!");
+}
+
+function createWindow() {
+  // Create the browser window
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    backgroundColor: '#0f2027', // Set background color to avoid white flash
+    show: false, // Don't show window until it's ready
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'), 
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: false, // Allow loading local files
+    },
+  });
+
+  // Load the index.html file
+  mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
+  
+  // Open DevTools for debugging
+  // // // // // // // // // // // // mainWindow.webContents.openDevTools();
+  
+  // Show window once ready to avoid blank white screen
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    console.log("Window is now visible");
+  });
+}
+
+// Create window when Electron is ready
+app.whenReady().then(() => {
+  createWindow();
+  
+  // Set up IPC handlers after window creation
+  setupHandlers();
+});
+
+function setupHandlers() {
+  console.log("Setting up IPC handlers...");
+  
+  // Handle file open dialog
+  ipcMain.handle('dialog:openFile', async () => {
+    console.log("dialog:openFile was called");
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+    });
+
+    if (!canceled) {
+      console.log("Selected file:", filePaths[0]);
+      return filePaths[0];
+    }
+    return null;
+  });
+
+  // Handle PDF file reading
+  ipcMain.handle('pdf:readFile', async (event, filePath) => {
+    console.log("pdf:readFile was called for:", filePath);
+    try {
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        console.error('File does not exist:', filePath);
+        throw new Error('File does not exist');
+      }
+
+      // Read file - using synchronous version for better reliability
+      const data = fs.readFileSync(filePath);
+      console.log("File read successfully, size:", data.length);
+      
+      // Return data as base64 string
+      return data.toString('base64');
+    } catch (error) {
+      console.error('Error reading PDF file:', error);
+      throw error;
+    }
+  });
+
+  // --- MODIFIED: ai:explain handler for Streaming ---
+  ipcMain.on('ai:explain-request', async (event, { text, style, streamId }) => {
+    console.log(`main.js: ai:explain-request received (streamId: ${streamId}) - Style: "${style}"`);
+    try {
+      // Check if aiService and the function exist before calling
+      if (aiService && typeof aiService.explainTextAndStream === 'function') {
+        await aiService.explainTextAndStream(text, style, streamId, (chunk) => {
+          if (event.sender && !event.sender.isDestroyed()) {
+            event.sender.send('ai:explain-chunk', chunk);
+          }
+        });
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('ai:explain-end', streamId);
+        }
+      } else {
+        console.error('main.js: aiService.explainTextAndStream is not available or not a function. aiService:', aiService);
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('ai:explain-error', { streamId, message: 'Internal server error: AI explanation service unavailable.' });
+        }
+      }
+    } catch (error) {
+      console.error('main.js: Error in ai:explain-request handler:', error); // Log the full error
+      if (event.sender && !event.sender.isDestroyed()) {
+        event.sender.send('ai:explain-error', { streamId, message: error.message || 'Error processing explanation' });
+      }
+    }
+  });
+
+  // --- MODIFIED: ai:chat handler for Streaming ---
+  ipcMain.on('ai:chat-request', async (event, { messages, streamId }) => {
+    console.log(`ai:chat-request received (streamId: ${streamId}) - Messages count: ${messages.length}`);
+    if (!messages || !Array.isArray(messages)) {
+      console.error(`ai:chat-request (streamId: ${streamId}) - Invalid messages argument`);
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('ai:chat-error', { streamId, message: 'Invalid message format received by server.' });
+      }
+      return;
+    }
+
+    try {
+      const streamChunkCallback = (chunk, isLastChunk) => {
+        if (event.sender.isDestroyed()) {
+            console.warn(`ai:chat-request (streamId: ${streamId}) - Renderer window destroyed, cannot send chat chunk.`);
+            return;
+        }
+        console.log(`ai:chat-request (streamId: ${streamId}) - Sending chat chunk. Last: ${isLastChunk}`);
+        // Chat chunks should also include the 'role' for the AI.
+        // For simplicity, assuming chunks are just content. The service should return content.
+        event.sender.send('ai:chat-chunk', { streamId, content: chunk, role: 'assistant', isLast: isLastChunk });
+      };
+      
+      // aiService.chat will now need to be stream-aware and accept a callback.
+      // It will internally call callAiApi which will also be stream-aware for chat.
+      // For now, we're defining a new method in aiService or modifying existing chat.
+      // Let's assume we'll modify aiService.chat to take the callback.
+      await aiService.chatAndStream(messages, streamChunkCallback);
+      // The chatAndStream method, like explainTextAndStream, won't return the full message
+      // if it's successfully streamed. It handles sending chunks via callback.
+      // No explicit 'end' signal here as the last chunk from streamChunkCallback serves that.
+
+    } catch (error) {
+      console.error(`Error in ai:chat-request (streamId: ${streamId}):`, error.message);
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('ai:chat-error', { streamId, message: error.message });
+      }
+    }
+  });
+
+  // Handler for chat stream requests
+  ipcMain.on('ai:chat-stream-request', async (event, { messages, streamId }) => {
+    console.log(`main.js: ai:chat-stream-request received (streamId: ${streamId})`);
+    try {
+      // The 3rd argument here (for chat) is the callback function
+      await aiService.startChatStream(messages, streamId, (chunk) => {
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('ai:chat-chunk', chunk);
+        }
+      });
+      if (event.sender && !event.sender.isDestroyed()) {
+        event.sender.send('ai:chat-end', streamId);
+      }
+    } catch (error) {
+      console.error('main.js: Error in ai:chat-stream-request handler calling aiService:', error);
+      if (event.sender && !event.sender.isDestroyed()) {
+        event.sender.send('ai:chat-error', { streamId, message: error.message || 'Error processing chat response' });
+      }
+    }
+  });
+
+  ipcMain.handle('ai:setPreferences', async (event, preferences) => {
+    console.log('IPC main received ai:setPreferences with preferences:', preferences);
+    // TODO: Implement logic to handle and store AI preferences.
+    // This could involve calling a method in aiService or a new configuration service.
+    // This is related to "AI preference settings UI" in Week 3, Task 3 for AIPanel.jsx
+    return { status: "Preferences received (placeholder for ai:setPreferences)" };
+  });
+  
+  console.log("IPC handlers setup complete (ai:explain & ai:chat use streaming).");
+}
+
+// Standard Electron event handlers
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+</file>
+
+<file path="src/main/preload.js">
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Expose protected methods to the renderer process
+contextBridge.exposeInMainWorld('electron', {
+  openFile: () => ipcRenderer.invoke('dialog:openFile'),
+  readPdfFile: (filePath) => ipcRenderer.invoke('pdf:readFile', filePath),
+  aiExplain: (text, style, streamId) => {
+    console.log(`Preload: aiExplain called. streamId: ${streamId}, style: ${style}, text: ${String(text).substring(0,30)}...`);
+    ipcRenderer.send('ai:explain-request', { text, style, streamId });
+  },
+  onExplainChunk: (callback) => {
+    const listener = (_event, chunk) => callback(chunk);
+    ipcRenderer.on('ai:explain-chunk', listener);
+    return () => ipcRenderer.removeListener('ai:explain-chunk', listener);
+  },
+  onExplainEnd: (callback) => {
+    const listener = (_event, streamId) => callback(streamId);
+    ipcRenderer.on('ai:explain-end', listener);
+    return () => ipcRenderer.removeListener('ai:explain-end', listener);
+  },
+  onExplainError: (callback) => {
+    const listener = (_event, errorInfo) => callback(errorInfo);
+    ipcRenderer.on('ai:explain-error', listener);
+    return () => ipcRenderer.removeListener('ai:explain-error', listener);
+  },
+  removeAllExplainListeners: (streamId) => {
+    // ipcRenderer.removeAllListeners('ai:explain-chunk'); // Too broad, need more specific removal if possible
+    // For now, the renderer will have to manage its own listener states based on streamId or use a wrapper.
+    // A more robust way is for the renderer to manage its own event emitter that wraps these.
+    // Let's keep it simple for now: the renderer needs to be careful with listener cleanup.
+    // A simple approach is to have the renderer remove its own specific callback.
+    // This preload part just exposes the general .on capability.
+  },
+  aiChat: (messages, streamId) => {
+    console.log(`Preload: aiChat called. streamId: ${streamId}, messages count: ${messages.length}`);
+    ipcRenderer.send('ai:chat-request', { messages, streamId });
+  },
+  onChatChunk: (callback) => {
+    const listener = (_event, chunk) => callback(chunk);
+    ipcRenderer.on('ai:chat-chunk', listener);
+    return () => ipcRenderer.removeListener('ai:chat-chunk', listener);
+  },
+  onChatEnd: (callback) => {
+    const listener = (_event, streamId) => callback(streamId);
+    ipcRenderer.on('ai:chat-end', listener);
+    return () => ipcRenderer.removeListener('ai:chat-end', listener);
+  },
+  onChatError: (callback) => {
+    const listener = (_event, errorInfo) => callback(errorInfo);
+    ipcRenderer.on('ai:chat-error', listener);
+    return () => ipcRenderer.removeListener('ai:chat-error', listener);
+  },
+  aiSetPreferences: (preferences) => ipcRenderer.invoke('ai:setPreferences', preferences),
+  removeAllListenersForStream: (channelBasename) => {
+    console.warn(`Preload: removeAllListenersForStream for ${channelBasename} called (conceptual).`);
+  },
+  // New methods for chat streaming
+  aiChatStream: (messages, streamId) => {
+    console.log(`Preload: aiChatStream called. streamId: ${streamId}, messages count: ${messages?.length}`);
+    ipcRenderer.send('ai:chat-stream-request', { messages, streamId });
+  }
+});
+
+// For debugging
+console.log('Preload script loaded (streaming for aiExplain & aiChat).');
+</file>
+
+<file path="src/renderer/components/LandingPage.jsx">
+import React, { useState, useEffect } from 'react';
+
+const LandingPage = ({ onOpenPDF }) => {
+  const [animateIn, setAnimateIn] = useState(false);
+  
+  // Animation effect when component mounts
+  useEffect(() => {
+    setTimeout(() => setAnimateIn(true), 100);
+  }, []);
+
+  return (
+    <div style={{ 
+      height: '100%',
+      background: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)',
+      backgroundSize: '600% 600%',
+      animation: 'gradientBG 15s ease infinite',
+      padding: '40px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'auto',
+      position: 'relative',
+    }}>
+      {/* Floating particles background */}
+      <div style={{ 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        opacity: 0.2,
+      }}>
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            background: 'white',
+            borderRadius: '50%',
+            width: `${Math.random() * 20 + 5}px`,
+            height: `${Math.random() * 20 + 5}px`,
+            top: `${Math.random() * 100}%`,
+            left: `${Math.random() * 100}%`,
+            animation: `float ${Math.random() * 20 + 10}s linear infinite`,
+            opacity: Math.random() * 0.5 + 0.1,
+          }} />
+        ))}
+      </div>
+      
+      {/* Content container with glass morphism effect */}
+      <div style={{ 
+        background: 'rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(10px)',
+        borderRadius: '20px',
+        padding: '40px',
+        maxWidth: '900px',
+        width: '100%',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        transform: animateIn ? 'translateY(0)' : 'translateY(20px)',
+        opacity: animateIn ? 1 : 0,
+        transition: 'all 0.6s ease-out',
+      }}>
+        {/* Logo/Icon */}
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '20px',
+        }}>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.15)',
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+          }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        
+        <h1 style={{ 
+          fontSize: '3.5rem',
+          textAlign: 'center',
+          margin: '0 0 10px 0',
+          color: 'white',
+          fontWeight: '800',
+          textShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
+          letterSpacing: '-0.5px',
+        }}>
+          AI PDF Reader
+        </h1>
+        
+        <p style={{ 
+          fontSize: '1.3rem',
+          textAlign: 'center',
+          margin: '0 0 40px 0',
+          color: 'rgba(255, 255, 255, 0.8)',
+          maxWidth: '600px',
+          lineHeight: '1.6',
+          alignSelf: 'center',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }}>
+          Enhance your reading experience with AI-powered explanations.
+          Simply highlight text in any PDF to get instant insights tailored to your needs.
+        </p>
+        
+        {/* Feature cards */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+          gap: '20px',
+          marginBottom: '40px',
+        }}>
+          {[
+            {
+              icon: (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+              ),
+              title: "Custom Explanations",
+              desc: "Control how the AI explains content by providing your own custom instructions."
+            },
+            {
+              icon: (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              ),
+              title: "Interactive Chat",
+              desc: "Ask follow-up questions to get more details or clarification on any topic."
+            },
+            {
+              icon: (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+              ),
+              title: "Cross-Platform",
+              desc: "Works seamlessly on Windows, macOS, and Linux with the same great experience."
+            }
+          ].map((feature, index) => (
+            <div key={index} style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '12px',
+              padding: '25px',
+              transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+              color: 'white',
+              transform: animateIn ? 'translateY(0)' : 'translateY(20px)',
+              opacity: animateIn ? 1 : 0,
+              transitionDelay: `${0.2 + index * 0.1}s`,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative',
+              overflow: 'hidden',
+              cursor: 'default',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-5px)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.1)';
+            }}
+            >
+              {/* Feature icon */}
+              <div style={{ 
+                width: '50px', 
+                height: '50px', 
+                borderRadius: '10px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                background: 'rgba(255, 255, 255, 0.15)',
+                marginBottom: '15px',
+                color: 'white',
+              }}>
+                {feature.icon}
+              </div>
+              
+              <h3 style={{ 
+                fontSize: '1.3rem', 
+                margin: '0 0 10px 0',
+                fontWeight: '600',
+              }}>
+                {feature.title}
+              </h3>
+              
+              <p style={{ 
+                fontSize: '0.95rem', 
+                margin: '0',
+                color: 'rgba(255, 255, 255, 0.8)',
+                lineHeight: '1.5',
+                flex: 1,
+              }}>
+                {feature.desc}
+              </p>
+              
+              {/* Decorative element */}
+              <div style={{
+                position: 'absolute',
+                top: '-10px',
+                right: '-10px',
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)',
+                pointerEvents: 'none',
+              }} />
+            </div>
+          ))}
+        </div>
+        
+        {/* CTA button */}
+        <div style={{ 
+          textAlign: 'center',
+          transform: animateIn ? 'translateY(0)' : 'translateY(20px)',
+          opacity: animateIn ? 1 : 0,
+          transition: 'all 0.6s ease-out',
+          transitionDelay: '0.5s',
+        }}>
+          <button 
+            onClick={onOpenPDF}
+            style={{
+              background: 'white',
+              color: '#203a43',
+              border: 'none',
+              padding: '15px 30px',
+              fontSize: '1.1rem',
+              fontWeight: '600',
+              borderRadius: '30px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+              transition: 'all 0.3s ease',
+              transform: 'scale(1)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.2)';
+            }}
+          >
+            <span style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              gap: '10px',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Open a PDF
+            </span>
+          </button>
+        </div>
+        
+        {/* Version info */}
+        <div style={{ 
+          marginTop: '40px',
+          fontSize: '0.85rem',
+          textAlign: 'center',
+          color: 'rgba(255, 255, 255, 0.6)',
+          opacity: animateIn ? 0.8 : 0,
+          transition: 'opacity 0.6s ease-out',
+          transitionDelay: '0.6s',
+        }}>
+          <p>AI PDF Reader v1.0 • Powered by PDF.js</p>
+        </div>
+      </div>
+      
+      {/* Add animation keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes gradientBG {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes float {
+          0% { transform: translateY(0) translateX(0); }
+          25% { transform: translateY(-10px) translateX(10px); }
+          50% { transform: translateY(0) translateX(20px); }
+          75% { transform: translateY(10px) translateX(10px); }
+          100% { transform: translateY(0) translateX(0); }
+        }
+      `}} />
+    </div>
+  );
+};
+
+export default LandingPage;
+</file>
+
+<file path="src/main/services/aiService.js">
+const { aiConfig } = require('../config/aiConfig.js'); // Changed from import to require
+const OpenAI = require('openai');
+
+// Placeholder for the AI API client (e.g., OpenAI library)
+// You'll need to install the appropriate SDK, e.g., `npm install openai`
+
+// --- Custom Error Types ---
+class AIAPIError extends Error {
+  constructor(message, statusCode, originalError = null) {
+    super(message);
+    this.name = 'AIAPIError';
+    this.statusCode = statusCode; // e.g., 401, 429, 500
+    this.originalError = originalError;
+  }
+}
+
+class AINetworkError extends Error {
+  constructor(message, originalError = null) {
+    super(message);
+    this.name = 'AINetworkError';
+    this.originalError = originalError;
+  }
+}
+
+class AIConfigError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'AIConfigError';
+  }
+}
+
+// --- API Key Retrieval ---
+const getApiKey = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('API Key not found in environment variables.'); // Changed to warn for fallback testing
+    // For actual operation, you might still want to throw an error if no key means no service.
+    // throw new AIConfigError('API key is not configured. Set OPENAI_API_KEY environment variable.');
+    return null; // Allow fallback to be triggered if API key is missing
+  }
+  return apiKey;
+};
+
+const callAiApi = async (promptOrMessages, modelConfig, isChat = false, streamCallback = null) => {
+  const apiKey = getApiKey();
+
+  // Simulate API key missing for fallback testing
+  if (promptOrMessages.includes && promptOrMessages.includes('test_no_api_key')) {
+     console.log('callAiApi: Simulating missing API key scenario.');
+     // This doesn't directly throw here, getApiKey() handles it.
+     // We'll rely on apiKey being null below.
+  } else if (!apiKey) {
+    // If API key is genuinely missing and getApiKey returned null
+    throw new AIConfigError('API key is missing. Cannot call AI API.');
+  }
+
+
+  // --- TODO: Replace this entire block with actual API SDK calls ---
+  // This simulation block will be replaced by your chosen AI provider's SDK interaction
+  console.log(`callAiApi: Simulating ${isChat ? 'Chat' : 'Explain'} API call. ${streamCallback ? 'Streaming enabled.' : 'No streaming.'}`);
+
+  // Simulate different error types for testing
+  if (typeof promptOrMessages === 'string' && promptOrMessages.includes('test_api_error_429')) {
+    throw new AIAPIError('Rate limit exceeded', 429);
+  }
+  if (typeof promptOrMessages === 'string' && promptOrMessages.includes('test_api_error_500')) {
+    throw new AIAPIError('Internal server error from AI API', 500);
+  }
+  if (typeof promptOrMessages === 'string' && promptOrMessages.includes('test_network_error')) {
+    throw new AINetworkError('Simulated network failure');
+  }
+  // --- End of simulation block to be replaced ---
+
+  // Actual SDK calls would go here, e.g., for OpenAI:
+  /*
+  try {
+    const OpenAI = require('openai');
+    const openai = new OpenAI({ apiKey });
+    if (isChat) {
+      const completion = await openai.chat.completions.create({
+        messages: promptOrMessages, // expects array of {role, content}
+        model: modelConfig.model,
+        // ... other params
+      });
+      return completion.choices[0].message.content;
+    } else {
+      const completion = await openai.chat.completions.create({ // Or a different endpoint if available/suitable
+        messages: [{ role: "user", content: promptOrMessages }], // promptOrMessages is a string here
+        model: modelConfig.model,
+        // ... other params
+      });
+      return completion.choices[0].message.content;
+    }
+  } catch (error) {
+    if (error.response) { // Axios-like error structure, OpenAI SDK might have different structure
+      throw new AIAPIError(error.message, error.response.status, error);
+    } else if (error.request) { // Network error
+      throw new AINetworkError(error.message, error);
+    } else { // Other errors
+      throw new Error(`Unexpected error during AI API call: ${error.message}`);
+    }
+  }
+  */
+
+  // Fallback to simple simulation if no error was thrown by test cases
+  if (streamCallback && !isChat) { // Simulate streaming for explainText
+    const fullText = `This is a simulated, streamed explanation for: "${promptOrMessages.substring(0, 60)}..." It will arrive in several chunks. This helps make the UI feel more responsive. The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.`;
+    const chunks = fullText.match(/.{1,20}/g) || []; // Split into small chunks
+    let aggregatedResponse = "";
+
+    for (let i = 0; i < chunks.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100)); // Simulate delay for each chunk
+      streamCallback(chunks[i], false); // Not the last chunk yet
+      aggregatedResponse += chunks[i];
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+    streamCallback("", true); // Send final empty chunk to signal end
+    return aggregatedResponse; // Return the full aggregated text
+  } else if (isChat) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const lastUserMessage = promptOrMessages.filter(m => m.role === 'user').pop();
+    return `(Simulated) AI thinks about: "${lastUserMessage ? lastUserMessage.content.substring(0, 40) : 'your message'}"`;
+  } else {
+  await new Promise(resolve => setTimeout(resolve, 1000));
+    return `(Simulated) Detailed thoughts on: "${promptOrMessages.substring(0, 60)}..."`;
+  }
+};
+
+// --- Fallback Responses ---
+const getFallbackResponse = (error, context = 'general') => {
+  console.warn(`aiService: Generating fallback due to error: ${error.name} - ${error.message}`);
+  if (error instanceof AIConfigError) {
+    return `I seem to be misconfigured. Please check my settings. (Details: ${error.message})`;
+  }
+  if (error instanceof AIAPIError) {
+    if (error.statusCode === 401) return "My access to the AI service was denied. Please check the API key.";
+    if (error.statusCode === 429) return "I'm a bit overwhelmed right now (rate limit). Please try again in a moment.";
+    return `The AI service seems to be having trouble (Error ${error.statusCode}). Please try again later.`;
+  }
+  if (error instanceof AINetworkError) {
+    return "I couldn't reach the AI service. Please check your internet connection.";
+  }
+  // Generic fallback
+  if (context === 'chat') {
+    return "I'm having a little trouble thinking right now. Let's try that again in a bit?";
+  }
+  return "Sorry, I couldn't process that request due to an unexpected issue. Please try again.";
+};
+
+let explainCount = 0;
+let chatCount = 0;
+
+// Helper function to simulate delay
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+let openai;
+try {
+    if (!process.env.OPENAI_API_KEY) {
+        console.warn('OPENAI_API_KEY environment variable not found at initial load. AI service might not connect to OpenAI.');
+    }
+    openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+    });
+} catch (error) {
+    console.error("Failed to initialize OpenAI client during initial load:", error.message);
+    openai = null;
+}
+
+async function explainTextAndStream(text, style, streamId, streamChunkCallback) {
+    console.log(`aiService.explainTextAndStream: ENTER - StreamId: ${streamId}, Style: "${style}"`);
+
+    if (typeof streamChunkCallback !== 'function') {
+        console.error("aiService.explainTextAndStream: CRITICAL ERROR - streamChunkCallback is not a function.");
+        return;
+    }
+
+    if (!openai || !process.env.OPENAI_API_KEY) {
+        const errorMsg = !openai ? 'OpenAI client not initialized (check API key at startup).' : 'OpenAI API Key not configured for explanation.';
+        console.warn(`aiService.explainTextAndStream: ${errorMsg}`);
+        streamChunkCallback({ streamId, type: 'error', content: errorMsg });
+        return;
+    }
+
+    let systemPrompt = "You are a helpful AI assistant.";
+    if (style === 'Summarize') {
+        systemPrompt = "You are an expert summarizer. Provide a concise summary of the following text.";
+    } else if (style === 'Explain simply') {
+        systemPrompt = "You are an expert at explaining complex topics simply. Explain the following text in a very easy to understand way, as if to a beginner.";
+    } else if (style === 'Funny analogy') {
+        systemPrompt = "You are an AI with a great sense of humor. Explain the following text using a creative and funny analogy.";
+    } else if (style === 'Expand') {
+        systemPrompt = "You are an AI that elaborates on topics. Expand on the following text, providing more detail, context, and examples.";
+    } else {
+        // Use the custom prompt directly if it's not a predefined style
+        systemPrompt = style;
+    }
+
+    const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Please address the following text:\n\n${text}` }
+    ];
+
+    try {
+        console.log(`aiService.explainTextAndStream: Attempting OpenAI API call for streamId: ${streamId}`);
+        // streamChunkCallback({ streamId, type: 'status', content: 'Contacting AI for explanation...' });
+
+        const stream = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: messages,
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 500,
+        });
+
+        for await (const chunk of stream) {
+            const contentPiece = chunk.choices[0]?.delta?.content || "";
+            if (contentPiece) {
+                streamChunkCallback({
+                    streamId,
+                    type: 'content',
+                    content: contentPiece,
+                    isLastChunk: false
+                });
+            }
+            if (chunk.choices[0]?.finish_reason) break;
+        }
+        console.log(`aiService.explainTextAndStream: OpenAI API call finished for streamId: ${streamId}`);
+
+    } catch (error) {
+        console.error(`aiService.explainTextAndStream: Error during OpenAI API call for streamId ${streamId}:`, error.message);
+        let errorMessage = 'An unknown error occurred with the AI explanation service.';
+         if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.message.toLowerCase().includes('connection error')) {
+            errorMessage = `Connection error (Explain): Could not connect to AI. (Details: ${error.message})`;
+        } else if (error.response) {
+            errorMessage = `AI API Error (Explain): ${error.response.status} - ${error.response.data?.error?.message || error.message}`;
+        } else if (error.message) {
+            errorMessage = error.message; // General error
+        }
+        streamChunkCallback({ streamId, type: 'error', content: errorMessage });
+    }
+}
+
+async function startChatStream(messages, streamId, streamChunkCallback) {
+    console.log(`aiService.startChatStream: ENTER - StreamId: ${streamId}, Messages count: ${messages?.length}`);
+
+    if (typeof streamChunkCallback !== 'function') {
+        console.error("aiService.startChatStream: CRITICAL ERROR - streamChunkCallback is not a function.");
+        return;
+    }
+
+    if (!openai || !process.env.OPENAI_API_KEY) {
+        const errorMsg = !openai ? 'OpenAI client not initialized (check API key at startup).' : 'OpenAI API Key not configured for chat.';
+        console.warn(`aiService.startChatStream: ${errorMsg}`);
+        streamChunkCallback({ streamId, type: 'error', content: errorMsg });
+        return;
+    }
+
+    // Log the messages received by startChatStream for inspection
+    console.log(`aiService.startChatStream: Messages received for OpenAI (length ${messages?.length}):`, JSON.stringify(messages, null, 2));
+
+    let finalMessages = [...messages]; // Make a copy to modify
+
+    // Ensure there's a system message. If not, prepend a default one.
+    if (!finalMessages.find(msg => msg.role === 'system')) {
+      finalMessages.unshift({ role: "system", content: "Address the user\'s last message directly." });
+      console.log(`aiService.startChatStream: Prepended VERY direct system message. Updated messages (length ${finalMessages?.length}):`, JSON.stringify(finalMessages, null, 2));
+    } else {
+      console.log(`aiService.startChatStream: Existing system message found. Messages (length ${finalMessages?.length}):`, JSON.stringify(finalMessages, null, 2));
+    }
+
+    try {
+        console.log(`aiService.startChatStream: Attempting OpenAI API call for streamId: ${streamId}. Messages payload:`, JSON.stringify(messages, null, 2));
+        // streamChunkCallback({ streamId, type: 'status', content: 'Contacting AI for chat...' });
+
+        const stream = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo", // Consider making this configurable
+            messages: finalMessages, // Use the potentially modified messages array
+            stream: true,
+            temperature: 0.7, // Consider making this configurable
+            max_tokens: 1500,  // Explicitly set max_tokens for the completion
+        });
+
+        for await (const chunk of stream) {
+            const contentPiece = chunk.choices[0]?.delta?.content || "";
+            if (contentPiece) {
+                streamChunkCallback({
+                    streamId,
+                    type: 'content',
+                    content: contentPiece,
+                    isLastChunk: false
+                });
+            }
+            if (chunk.choices[0]?.finish_reason) break;
+        }
+        console.log(`aiService.startChatStream: OpenAI API call finished for streamId: ${streamId}`);
+
+    } catch (error) {
+        console.error(`aiService.startChatStream: Error during OpenAI API call for streamId ${streamId}:`, error.message);
+        let errorMessage = 'An unknown error occurred with the AI chat service.';
+        if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.message.toLowerCase().includes('connection error')) {
+            errorMessage = `Connection error (Chat): Could not connect to AI. (Details: ${error.message})`;
+        } else if (error.response) {
+            errorMessage = `AI API Error (Chat): ${error.response.status} - ${error.response.data?.error?.message || error.message}`;
+        } else if (error.message) {
+            errorMessage = error.message; // General error
+        }
+        streamChunkCallback({ streamId, type: 'error', content: errorMessage });
+    }
+}
+
+// --- AI Service Public Methods ---
+const aiService = {
+  async explainText(textToExplain, customPrompt) {
+    if (!textToExplain || !customPrompt) {
+      // This is more of an input validation, should ideally be caught before calling
+      return getFallbackResponse(new Error("Missing text or prompt for explanation."));
+    }
+    const template = aiConfig.prompt_templates.custom_explain;
+    const modelConfig = aiConfig.model_configs.default;
+    const filledPrompt = template
+      .replace('{custom_prompt}', customPrompt)
+      .replace('{text_to_explain}', textToExplain);
+    try {
+      console.log(`aiService.explainText: Calling API for prompt: "${filledPrompt.substring(0, 100)}..."`);
+      const explanation = await callAiApi(filledPrompt, modelConfig, false, null);
+      // TODO: Add to usage tracking
+      return explanation;
+    } catch (error) {
+      return getFallbackResponse(error, 'explain');
+    }
+  },
+
+  async chat(messages) {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return { role: 'assistant', content: getFallbackResponse(new Error("No messages provided for chat.")) };
+    }
+    console.log(`aiService.chat: Processing ${messages.length} messages. Last user: "${messages.filter(m=>m.role==='user').pop()?.content.substring(0,50)}..."`);
+    const modelConfig = aiConfig.model_configs.default;
+    try {
+      const aiResponseContent = await callAiApi(messages, modelConfig, true, null);
+      // TODO: Add to usage tracking
+      return { role: 'assistant', content: aiResponseContent };
+    } catch (error) {
+      return { role: 'assistant', content: getFallbackResponse(error, 'chat') };
+    }
+  },
+
+  // Placeholder for usage tracking related functions
+  getUsageStats: async () => {
+    // TODO: Retrieve and return usage statistics (e.g., from database or internal counters)
+    return { tokens_used_today: 0, requests_made: 0 };
+  },
+  checkQuota: async () => {
+    // TODO: Implement quota checking logic
+    return { under_quota: true, remaining: Infinity };
+  },
+  startChatStream
+};
+
+module.exports = {
+    explainTextAndStream,
+    startChatStream
+};
+</file>
+
+<file path="src/renderer/components/ReaderWithChat.jsx">
+import React, { useState } from 'react';
+import PDFViewer from './PDFViewer';
+import AIPanel from './AIPanel';
+
+export default function ReaderWithChat({ filePath }) {
+  const [messages, setMessages] = useState([]);
+
+  // whenever PDFViewer calls onTextSelected, append a new message
+  const handleTextSelected = (text, style) => {
+    // here you'd fetch your AI response; for now we mock with '...'
+    setMessages(m => [...m, { text, style, response: '...' }]);
+  };
+
+  return (
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        flex: 1,
+        position: 'relative',   // so PDFViewer tooltip can use fixed coords
+      }}>
+        <PDFViewer 
+          filePath={filePath} 
+          onTextSelected={handleTextSelected} 
+        />
+      </div>
+      <div style={{
+        width: '600px',
+        borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
+        background: 'linear-gradient(180deg, rgba(15, 32, 39, 0.98) 0%, rgba(32, 58, 67, 0.98) 100%)',
+        backdropFilter: 'blur(10px)',
+        boxShadow: '-5px 0 15px rgba(0, 0, 0, 0.2)',
+        display: 'flex',         
+        flexDirection: 'column', 
+        overflow: 'hidden',
+      }}>
+        <AIPanel messages={messages} />
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="README.md">
+# AI PDF Reader
+
+An AI-enhanced PDF reader that explains highlighted text. Built with Electron and React.
+
+## Features
+
+- Open and display PDF documents
+- Highlight text to get AI-powered explanations
+- Custom instruction input for personalized explanations
+- Chat interface for follow-up questions
+- Cross-platform (Windows, macOS, Linux)
+
+## Technologies Used
+
+- Electron - Cross-platform desktop app framework
+- React - UI library
+- PDF.js - PDF rendering engine
+- Webpack - Module bundler
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [PDF.js](https://mozilla.github.io/pdf.js/) - Mozilla's PDF viewer
+- [Electron](https://www.electronjs.org/) - For making cross-platform desktop apps easy
+</file>
+
+<file path="src/renderer/components/highlight-fixes.css">
+/* Hide the PDF.js text‐layer glyphs so the canvas text shows through */
+.textLayer > span {
+  color: transparent !important;
+  position: absolute;
+  white-space: pre;
+  /* In case of any fallback, force uniform metrics */
+  font: inherit !important;
+}
+
+/* Wrap only the highlighted spans */
+.textLayer .highlight {
+  position: relative;
+  display: inline-block;
+}
+
+/* Paint a translucent sky blue under the text shape */
+.textLayer .highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgba(135, 206, 235, 0.25);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  border-radius: 0.25em;
+  /* slight z-index so it sits just above the canvas */
+  z-index: -1;
+  
+  /* Add a slight padding reduction to make the highlight less expansive */
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+}
+
+/* Optional: smooth fade-in of new highlights */
+@keyframes highlightFade {
+  from { background-color: rgba(135, 206, 235, 0); }
+  to   { background-color: rgba(135, 206, 235, 0.25); }
+}
+.textLayer .highlight::before {
+  animation: highlightFade 0.3s ease-out;
+}
+
+/* Style for the currently scrolled-to highlight */
+.persistent-highlight.active-scrolled-highlight {
+  outline: 2px solid #FFD700; /* Gold outline */
+  box-shadow: 0 0 10px 3px #FFB000; /* Amber/Gold glow */
+  background-color: rgba(255, 215, 0, 0.3) !important; /* Slightly more prominent background */
+  /* Ensure it's visually on top if there are stacking issues, though mix-blend-mode might handle it */
+  z-index: 1 !important; 
+  transition: outline 0.3s ease-in-out, box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out;
+}
+</file>
+
+<file path="src/renderer/index.html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI PDF Reader</title>
+  <!-- Load PDF.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script>
+    // Set PDF.js worker path
+    window.pdfjsLib = window['pdfjs-dist/build/pdf'];
+    if (window.pdfjsLib) {
+      console.log('PDF.js loaded successfully');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    } else {
+      console.error('Failed to load PDF.js library');
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+      background-color: #0f2027;
+      color: white;
+    }
+    
+    #root {
+      height: 100%;
+    }
+    
+    /* Remove browser default focus outlines and add custom ones */
+    :focus {
+      outline: none;
+    }
+    
+    button:focus, select:focus {
+      box-shadow: 0 0 0 2px rgba(44, 83, 100, 0.5);
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* IMPROVED HIGHLIGHTING - MUCH BRIGHTER */
+    .textLayer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      opacity: 1.0 !important;
+      line-height: 1.0;
+      user-select: text;
+      mix-blend-mode: normal !important;
+      z-index: 2 !important;
+    }
+
+.textLayer > span {
+  /* hide PDF.js text layer glyphs, let canvas show through */
+  color: transparent !important;
+  /* force uniform metrics */
+  font-family: Arial, sans-serif !important;
+  font-size: 1em !important;
+  line-height: 1.2 !important;
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0 0;
+}
+.textLayer ::selection, ::selection {
+  background: rgba(255,255,0,0.3) !important;
+  color: transparent !important;
+  text-shadow: none !important;
+}
+
+    .textLayer .highlight {
+      margin: -1px;
+      padding: 1px;
+      background-color: #87CEEB !important;
+      border-radius: 4px;
+      opacity: 0.4 !important;
+    }
+
+    .textLayer ::selection, ::selection {
+      background: rgba(135, 206, 235, 0.25) !important;
+      color: transparent !important;
+      text-shadow: none !important;
+    }
+    
+    /* Selection color for all elements */
+    ::selection {
+      background: #87CEEB !important;
+      color: #000000 !important;
+      opacity: 0.4 !important;
+      text-shadow: none !important;
+    }
+    
+    /* Animation keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideIn {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(0); }
+    }
+    
+    @keyframes slideOut {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(100%); }
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* CRITICAL FIX: Apply direct styling to ensure tooltip works */
+    [class*="tooltip"], [style*="tooltip"] {
+      position: fixed !important;
+      z-index: 9999 !important;
+      background-color: rgba(42, 49, 65, 0.95) !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      border-radius: 10px !important;
+      transform: translateX(-50%) !important;
+    }
+    
+    /* Force buttons to be visible and clickable */
+    [class*="tooltip"] button, [style*="tooltip"] button {
+      cursor: pointer !important;
+      pointer-events: auto !important;
+      position: relative !important;
+      z-index: 10000 !important;
+    }
+
+    /* Closed <select> is already set inline;
+       style the dropdown list options to match */
+
+    select.chat-select option {
+      background-color: rgba(44, 83, 100, 0.4) !important;
+      color: white !important;
+    }
+
+    /* Closed <select> box in header */
+    select.chat-select {
+      background-color: rgba(44, 83, 100, 0.4) !important;
+      color: white              !important;
+    }
+    /* Opened dropdown options */
+    select.chat-select option {
+      background-color: rgba(44, 83, 100, 0.4) !important;
+      color: white              !important;
+    }
+
+    .textLayer > span::after {
+      content: '';
+      display: none;
+    }
+  </style>
+  <script>
+    // Fix tooltip positioning and button behavior on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log("Installing PDF Reader fixes...");
+      
+      // Force the tooltip to appear higher
+      document.addEventListener('mouseup', function() {
+        setTimeout(function() {
+          const tooltips = document.querySelectorAll('[style*="tooltip"], .selection-tooltip');
+          
+          tooltips.forEach(function(tooltip) {
+            // Ensure tooltip is positioned well above text
+            if (tooltip.style.top) {
+              const topValue = parseInt(tooltip.style.top);
+              tooltip.style.top = (topValue - 100) + 'px';
+            }
+            
+            // Ensure buttons work
+            const buttons = tooltip.querySelectorAll('button');
+            buttons.forEach(function(button) {
+              const text = button.textContent.trim();
+              
+              // Make close button more reliable
+              if (text === '✕') {
+                button.addEventListener('mousedown', function(e) {
+                  e.stopPropagation();
+                  tooltip.style.display = 'none';
+                }, true);
+              }
+              
+              // Make other buttons more reliable
+              button.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+              }, true);
+            });
+            
+            // Make sure tooltip is visible and clickable
+            tooltip.style.pointerEvents = 'auto';
+            tooltip.style.zIndex = '9999';
+          });
+        }, 100);
+      });
+      
+      console.log("PDF Reader fixes installed");
+    });
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>
+</file>
+
+<file path="src/renderer/components/App.jsx">
+import React, { useState, useEffect, useRef } from 'react';
+import LandingPage from './LandingPage';
+import PDFViewer from './PDFViewer';
+import AIPanel from './AIPanel';
+
+const App = () => {
+  const [pdfPath, setPdfPath] = useState(null);
+  const [selectedText, setSelectedText] = useState('');
+  const [selectedStyle, setSelectedStyle] = useState('simple');
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [showLanding, setShowLanding] = useState(true);
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [newChatCount, setNewChatCount] = useState(0);
+  const [fullPdfText, setFullPdfText] = useState('');
+  const aiPanelRef = useRef(null);
+  const pdfViewerRef = useRef(null);
+
+  const handleNewChat = () => {
+    setShowAIPanel(true);
+    setSelectedText('');
+    setSelectedStyle('simple');
+    setSelectedLocation(null);
+    setCustomPrompt('');
+    if (aiPanelRef.current && aiPanelRef.current.switchToEmptyChat) {
+      const switched = aiPanelRef.current.switchToEmptyChat();
+      if (switched) return;
+    }
+    setNewChatCount(c => c + 1);
+  };
+
+  const handleOpenPDF = async () => {
+    try {
+      const filePath = await window.electron.openFile();
+      if (filePath) {
+        setPdfPath(filePath);
+        setShowLanding(false);
+      }
+    } catch (error) {
+      console.error('Error opening PDF:', error);
+    }
+  };
+
+  const handleTextSelected = (text, style = 'default', locationData) => {
+    setSelectedText(text);
+    setSelectedStyle(style);
+    setSelectedLocation(locationData);
+    
+    // Always open panel for any style, including default
+    setShowAIPanel(true);
+  };
+
+  const handleBackToLanding = () => {
+    setPdfPath(null);
+    setSelectedText('');
+    setSelectedLocation(null);
+    setShowAIPanel(false);
+    setShowLanding(true);
+    setFullPdfText('');
+  };
+
+  const handleCloseAIPanel = () => {
+    setShowAIPanel(false);
+  };
+
+  const handleGoToHighlight = (locationToScrollTo) => {
+    const targetLocation = locationToScrollTo !== undefined ? locationToScrollTo : selectedLocation;
+
+    if (pdfViewerRef.current && targetLocation) {
+      if (typeof pdfViewerRef.current.scrollToHighlight === 'function') {
+        pdfViewerRef.current.scrollToHighlight(targetLocation);
+      } else {
+        console.warn('PDFViewer ref does not have scrollToHighlight method');
+      }
+    } else {
+      if (!targetLocation) {
+        console.log('handleGoToHighlight: No highlight selected yet.');
+      } else {
+        console.warn('handleGoToHighlight called without targetLocation or PDFViewer ref');
+      }
+    }
+  };
+
+  const handleRemoveHighlightById = (highlightId) => {
+    if (pdfViewerRef.current && typeof pdfViewerRef.current.removeHighlight === 'function') {
+      pdfViewerRef.current.removeHighlight(highlightId);
+    } else {
+      console.warn('PDFViewer ref does not have removeHighlight method or ref is not set');
+    }
+  };
+
+  return (
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      background: '#0f2027',
+      color: 'white',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {showLanding ? (
+        <LandingPage onOpenPDF={handleOpenPDF} />
+      ) : (
+        <>
+          <header style={{ 
+            padding: '15px',
+            background: 'linear-gradient(90deg, #0f2027, #203a43, #2c5364)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            backdropFilter: 'blur(10px)',
+            zIndex: 10,
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
+          }}>
+            <button 
+              onClick={handleBackToLanding}
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 15px',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              Back to Home
+            </button>
+            
+            <div style={{ 
+              margin: '0 15px', 
+              color: 'rgba(255, 255, 255, 0.8)',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              {pdfPath ? pdfPath.split('/').pop() : 'No file selected'}
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginLeft: 'auto',
+              gap: '8px'
+            }}>
+              <span style={{
+                color: 'white',
+                fontSize: '0.95rem',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+                userSelect: 'none'
+              }}>
+                Open new chat
+              </span>
+              <button
+                onClick={handleNewChat}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+              </button>
+            </div>
+          </header>
+          
+          <div style={{ 
+            flex: 1, 
+            display: 'flex', 
+            overflow: 'hidden',
+            background: '#1a2a36',
+            position: 'relative',
+          }}>
+            {/* Main PDF Viewer takes full width when AI panel is hidden */}
+            <div style={{ 
+              flex: 1, 
+              overflow: 'hidden',
+              transition: 'width 0.3s ease',
+            }}>
+              <PDFViewer 
+                ref={pdfViewerRef}
+                filePath={pdfPath} 
+                onTextSelected={handleTextSelected}
+                onFullTextExtracted={setFullPdfText}
+                pdfContentStyle={{
+                  marginLeft: showAIPanel ? '-600px' : '0',
+                  transition: 'margin-left 0.3s ease',
+                }}
+                setCustomPrompt={setCustomPrompt}
+                onClose={handleCloseAIPanel}
+                newChatCount={newChatCount}
+                fullPdfText={fullPdfText}
+                onGoToHighlight={handleGoToHighlight}
+              />
+            </div>
+            
+            {/* AI Panel slides in from the right when text is selected */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '600px', // Increased from 500px to 600px for a wider panel
+              transform: showAIPanel ? 'translateX(0)' : 'translateX(100%)',
+              transition: 'transform 0.3s ease-in-out',
+              zIndex: 100,
+              boxShadow: '-2px 0 20px rgba(0, 0, 0, 0.25)',
+              overflow: 'auto'
+            }}>
+              <AIPanel 
+                ref={aiPanelRef}
+                selectedText={selectedText}
+                selectedStyle={selectedStyle}
+                customPrompt={customPrompt}
+                setCustomPrompt={setCustomPrompt}
+                onClose={handleCloseAIPanel}
+                newChatCount={newChatCount}
+                fullPdfText={fullPdfText}
+                onGoToHighlight={handleGoToHighlight}
+                selectedLocation={selectedLocation}
+                onRemoveHighlight={handleRemoveHighlightById}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default App;
+</file>
+
+<file path="src/renderer/components/PDFViewer.jsx">
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+
+const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, onFullTextExtracted }, ref) => {
+  const [pdfDocument, setPdfDocument] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [scale, setScale] = useState(1.5);
+  const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('');
+  const [persistentHighlights, setPersistentHighlights] = useState([]);
+  const [pageRenderKey, setPageRenderKey] = useState(0);
+  const [error, setError] = useState(null);
+  const [activeHighlightId, setActiveHighlightId] = useState(null);
+  const [selectionTooltip, setSelectionTooltip] = useState({
+    visible: false,
+    text: '',
+    x: 0,
+    y: 0
+  });
+  const containerRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const selectedTextRef = useRef('');
+
+  // Load highlights from session storage on component mount
+  useEffect(() => {
+    try {
+      const storedHighlights = sessionStorage.getItem('pdfPersistentHighlights');
+      if (storedHighlights) {
+        setPersistentHighlights(JSON.parse(storedHighlights));
+      }
+    } catch (e) {
+      console.error("Failed to load highlights from session storage", e);
+    }
+  }, []);
+
+  // Save highlights to session storage whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('pdfPersistentHighlights', JSON.stringify(persistentHighlights));
+    } catch (e) {
+      console.error("Failed to save highlights to session storage", e);
+    }
+  }, [persistentHighlights]);
+
+  // Load PDF document when filePath changes
+  useEffect(() => {
+    if (!filePath) return;
+    
+    const loadPdf = async () => {
+      setLoading(true);
+      setError(null);
+      setLoadingStatus('Starting PDF load...');
+      setPersistentHighlights([]); // Clear highlights for new PDF
+      if (onFullTextExtracted) { // Clear any previous full text
+        onFullTextExtracted('');
+      }
+      
+      try {
+        console.log('Loading PDF from:', filePath);
+        
+        // Check that PDF.js is loaded
+        const pdfjsLib = window.pdfjsLib;
+        if (!pdfjsLib) {
+          throw new Error('PDF.js library not found');
+        }
+        
+        // Read file via preload bridge
+        setLoadingStatus('Reading PDF file...');
+        console.log('Calling electron.readPdfFile...');
+        const base64Data = await window.electron.readPdfFile(filePath);
+        
+        if (!base64Data) {
+          throw new Error('Could not read PDF file');
+        }
+        
+        console.log('PDF data loaded, length:', base64Data.length);
+        setLoadingStatus('Processing PDF data...');
+        
+        // Convert base64 to binary data
+        const binaryData = atob(base64Data);
+        const len = binaryData.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryData.charCodeAt(i);
+        }
+        
+        // Load PDF from binary data
+        setLoadingStatus('Loading PDF into viewer...');
+        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        
+        const document = await loadingTask.promise;
+        console.log('PDF loaded successfully, pages:', document.numPages);
+        
+        setPdfDocument(document);
+        setTotalPages(document.numPages);
+        setCurrentPage(1);
+        setLoadingStatus('');
+
+        // Extract full text
+        if (onFullTextExtracted) {
+          setLoadingStatus('Extracting text...');
+          let fullText = '';
+          for (let i = 1; i <= document.numPages; i++) {
+            const page = await document.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n'; // Add double newline between pages
+            setLoadingStatus(`Extracted text from page ${i}/${document.numPages}`);
+          }
+          onFullTextExtracted(fullText.trim());
+          console.log('Full text extracted.');
+          setLoadingStatus('');
+        }
+
+      } catch (error) {
+        console.error('Failed to load PDF:', error);
+        setError('Failed to load PDF: ' + error.message);
+        setLoadingStatus('Error loading PDF');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPdf();
+  }, [filePath, onFullTextExtracted]);
+
+  // Render current page when it changes
+  useEffect(() => {
+    if (!pdfDocument || !containerRef.current) return;
+
+    const renderCurrentPage = async () => {
+      setLoading(true);
+      setLoadingStatus(`Rendering page ${currentPage}...`);
+      try {
+        // Clear previous content
+        const pageContainer = containerRef.current;
+        pageContainer.innerHTML = '';
+        
+        // Create canvas element
+        const canvasWrapper = document.createElement('div');
+        canvasWrapper.className = 'canvasWrapper';
+        canvasWrapper.style.position = 'relative';
+        
+        const canvas = document.createElement('canvas');
+        canvasWrapper.appendChild(canvas);
+        pageContainer.appendChild(canvasWrapper);
+
+        // Get the page
+        const page = await pdfDocument.getPage(currentPage);
+        
+        // Set viewport based on scale
+        const viewport = page.getViewport({ scale });
+        
+        // Prepare canvas
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        // Render the page
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+        
+        await page.render(renderContext).promise;
+        
+        // Add text layer for selection
+        const textContent = await page.getTextContent();
+        
+        // Create text layer div
+        const textLayerDiv = document.createElement('div');
+        textLayerDiv.className = 'textLayer';
+        textLayerDiv.style.position = 'absolute';
+        textLayerDiv.style.top = '0';
+        textLayerDiv.style.left = '0';
+        textLayerDiv.style.right = '0';
+        textLayerDiv.style.bottom = '0';
+        textLayerDiv.style.width = viewport.width + 'px';
+        textLayerDiv.style.height = viewport.height + 'px';
+        canvasWrapper.appendChild(textLayerDiv);
+        
+        // Use PDF.js text layer builder
+        const renderTextLayer = window.pdfjsLib.renderTextLayer({
+          textContent: textContent,
+          container: textLayerDiv,
+          viewport: viewport,
+        });
+        
+        await renderTextLayer.promise;
+        
+        // Make text layer selectable
+        textLayerDiv.style.pointerEvents = 'auto';
+        setLoadingStatus('');
+        setPageRenderKey(prevKey => prevKey + 1);
+      } catch (error) {
+        console.error('Error rendering page:', error);
+        setError('Error rendering page: ' + error.message);
+        setLoadingStatus('Error rendering page');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    renderCurrentPage();
+  }, [pdfDocument, currentPage, scale]);
+
+  // Effect to render persistent highlights
+  useEffect(() => {
+    if (!pdfDocument || !containerRef.current || !containerRef.current.querySelector('.canvasWrapper')) {
+      return;
+    }
+
+    const canvasWrapper = containerRef.current.querySelector('.canvasWrapper');
+    if (!canvasWrapper) return;
+
+    // Remove old highlight divs for the current page to prevent duplicates
+    const oldHighlightElements = canvasWrapper.querySelectorAll('.persistent-highlight');
+    oldHighlightElements.forEach(el => el.remove());
+
+    const highlightsForCurrentPage = persistentHighlights.filter(
+      h => h.pageNumber === currentPage
+    );
+
+    highlightsForCurrentPage.forEach(highlight => {
+      highlight.rectsOnPage.forEach(rect => {
+        const highlightDiv = document.createElement('div');
+        highlightDiv.className = 'persistent-highlight';
+        if (highlight.id === activeHighlightId) {
+          highlightDiv.classList.add('active-scrolled-highlight');
+        }
+        highlightDiv.style.position = 'absolute';
+        highlightDiv.style.top = `${rect.top * scale}px`;
+        highlightDiv.style.left = `${rect.left * scale}px`;
+        highlightDiv.style.width = `${rect.width * scale}px`;
+        highlightDiv.style.height = `${rect.height * scale}px`;
+        highlightDiv.style.backgroundColor = 'rgba(135, 206, 235, 0.25)'; // Sky blueish from highlight-fixes.css
+        highlightDiv.style.mixBlendMode = 'multiply'; // From highlight-fixes.css
+        highlightDiv.style.pointerEvents = 'none';
+        highlightDiv.style.borderRadius = '0.25em'; // From highlight-fixes.css
+        highlightDiv.style.zIndex = '0'; // Above canvas, potentially under text layer's transparent text
+        highlightDiv.setAttribute('data-highlight-id', highlight.id); 
+        canvasWrapper.appendChild(highlightDiv);
+      });
+    });
+  }, [persistentHighlights, currentPage, scale, pdfDocument, pageRenderKey, activeHighlightId]);
+
+  // IMPROVED: Handle text selection with fixed tooltip position
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      // Get raw text, then normalize whitespace
+      const rawSelectedText = selection.toString();
+      // Replace multiple whitespace characters (spaces, tabs, newlines) with a single space
+      const selectedText = rawSelectedText.replace(/\s+/g, ' ').trim();
+      
+      if (selectedText) {
+        // Store selected text for later use
+        selectedTextRef.current = selectedText;
+        
+        // First hide any existing tooltip
+        setSelectionTooltip({ visible: false });
+        
+        // Brief delay before showing new tooltip
+        setTimeout(() => {
+          if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const rects = range.getClientRects();
+            
+            if (rects.length > 0) {
+              // Get the first line rectangle (first highlighted line)
+              const firstRect = rects[0];
+              
+              // Position tooltip centered at the middle of the first line
+              const x = firstRect.left + (firstRect.width / 2);
+              // Position above the text (with extra spacing)
+              const y = firstRect.top - 56;
+              
+              console.log('Setting tooltip at position:', x, y);
+              
+              // Show tooltip with current selected text
+              setSelectionTooltip({
+                visible: true,
+                text: selectedText,
+                x,
+                y
+              });
+            }
+          }
+        }, 10);
+      }
+    };
+
+    // On mouse up, check for selection
+    const handleMouseUp = () => {
+      const selection = window.getSelection();
+      const selectedText = selection.toString().trim();
+      if (!selectedText) return;
+
+      // Only show the AI bubble for selections inside the PDF text layer
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        let node = range.startContainer;
+        // if it's a text node, go up to its parent
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+        // if this selection isn't within .textLayer, bail out
+        if (!node.closest('.textLayer')) {
+          return;  // let normal browser underline apply elsewhere
+        }
+      }
+
+      handleSelectionChange();
+    };
+    
+    // Hide tooltip when clicking elsewhere
+    const handleDocumentClick = (e) => {
+      // Don't hide if clicking on the tooltip itself
+      if (tooltipRef.current && tooltipRef.current.contains(e.target)) {
+        return;
+      }
+      
+      setTimeout(() => {
+        if (!window.getSelection().toString().trim()) {
+          setSelectionTooltip(prev => ({ ...prev, visible: false }));
+        }
+      }, 100);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('click', handleDocumentClick);
+    
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
+
+  // FIX: Improved handleAskAI with multiple approaches
+  const handleAskAI = (style) => {
+    try {
+      console.log('Button clicked:', style);
+      
+      const selection = window.getSelection();
+      const text = (selectedTextRef.current || selectionTooltip.text || "").trim();
+      
+      if (!text || !selection.rangeCount) {
+        console.error('No text selected or no range for AI explanation/highlighting');
+        return;
+      }
+      
+      const range = selection.getRangeAt(0);
+      const clientRects = Array.from(range.getClientRects());
+      const canvasWrapper = containerRef.current.querySelector('.canvasWrapper');
+
+      if (canvasWrapper && clientRects.length > 0) {
+        const canvasWrapperRect = canvasWrapper.getBoundingClientRect();
+        const rectsOnPage = clientRects.map(rect => ({
+          top: (rect.top - canvasWrapperRect.top) / scale,
+          left: (rect.left - canvasWrapperRect.left) / scale,
+          width: rect.width / scale,
+          height: rect.height / scale,
+        }));
+        const newHighlight = {
+          id: Date.now(),
+          pageNumber: currentPage,
+          text: text, // Store the actual text for potential future use
+          rectsOnPage: rectsOnPage,
+        };
+        setPersistentHighlights(prevHighlights => [...prevHighlights, newHighlight]);
+        // Pass the newHighlight's id and first rect for scrolling
+        const locationForCallback = { 
+          id: newHighlight.id, 
+          pageNumber: currentPage, 
+          rect: rectsOnPage.length > 0 ? rectsOnPage[0] : null 
+        };
+        // console.log('New highlight created, locationForCallback:', locationForCallback); // For debugging
+
+        // Hide tooltip first
+        setSelectionTooltip({ visible: false });
+        
+        // Reset selection
+        window.getSelection().removeAllRanges();
+        
+        // Delay to ensure UI updates before callback
+        setTimeout(() => {
+          // Call the parent callback
+          if (onTextSelected && typeof onTextSelected === 'function') {
+            console.log('Calling onTextSelected with:', text, style, 'on page', currentPage, 'location:', locationForCallback);
+            onTextSelected(text, style, locationForCallback); // Pass comprehensive location data
+          } else {
+            console.error('onTextSelected is not available');
+          }
+        }, 100);
+      } else { // Added else to handle case where canvasWrapper or clientRects are missing
+        console.error('Could not create highlight: canvasWrapper or clientRects missing.');
+        // Hide tooltip first
+        setSelectionTooltip({ visible: false });
+        // Reset selection
+        window.getSelection().removeAllRanges();
+      }
+    } catch (error) {
+      console.error('Error in handleAskAI:', error);
+    }
+  };
+  
+  // FIX: Improved close button handler
+  const handleCloseTooltip = (e) => {
+    console.log('Close button clicked');
+    
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    setSelectionTooltip({ visible: false });
+    
+    // Also clear selection
+    window.getSelection().removeAllRanges();
+  };
+
+  // Navigation controls
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prevPage => prevPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prevPage => prevPage + 1);
+    }
+  };
+
+  const zoomIn = () => {
+    setScale(prevScale => prevScale + 0.2);
+  };
+
+  const zoomOut = () => {
+    if (scale > 0.5) {
+      setScale(prevScale => prevScale - 0.2);
+    }
+  };
+
+  // Expose scrollToHighlight method via ref
+  useImperativeHandle(ref, () => ({
+    scrollToHighlight: (locationData) => {
+      if (locationData && typeof locationData.pageNumber !== 'undefined' && locationData.id) {
+        const pageNum = parseInt(locationData.pageNumber, 10);
+        if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+          
+          const performScrollAndHighlight = () => {
+            const targetHighlightElement = document.querySelector(`.persistent-highlight[data-highlight-id="${locationData.id}"]`);
+            if (targetHighlightElement) {
+              targetHighlightElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setActiveHighlightId(locationData.id); // Set active ID for styling
+
+              // Remove the active class after a delay
+              setTimeout(() => {
+                setActiveHighlightId(null);
+              }, 2000); // Highlight for 2 seconds
+            } else {
+              console.warn('scrollToHighlight: Target highlight element not found on page', pageNum, 'for id', locationData.id);
+            }
+          };
+
+          if (currentPage !== pageNum) {
+            setCurrentPage(pageNum);
+            // Need to wait for page to render, using setTimeout as a temporary measure
+            // A more robust solution might involve a callback or effect after page render
+            setTimeout(performScrollAndHighlight, 500); // Adjust delay as needed
+          } else {
+            // Already on the correct page, scroll immediately
+            performScrollAndHighlight();
+          }
+        } else {
+          console.warn('Invalid page number for scrollToHighlight:', locationData.pageNumber, 'Total pages:', totalPages);
+        }
+      } else {
+        console.warn('scrollToHighlight called without valid pageNumber or id in locationData', locationData);
+      }
+    },
+    removeHighlight: (highlightIdToRemove) => {
+      setPersistentHighlights(currentHighlights => 
+        currentHighlights.filter(h => h.id !== highlightIdToRemove)
+      );
+    }
+  }));
+
+  // Effect to clear active highlight when component unmounts or relevant dependencies change
+  useEffect(() => {
+    return () => {
+      setActiveHighlightId(null);
+    };
+  }, []); // Clear on unmount
+
+  // Re-apply active class if activeHighlightId is set and page changes (or scale changes)
+  // This ensures the class is present if the highlight re-renders
+  useEffect(() => {
+    if (activeHighlightId && containerRef.current) {
+      const canvasWrapper = containerRef.current.querySelector('.canvasWrapper');
+      if (canvasWrapper) {
+        // Remove from any old ones first (though should be handled by highlight removal)
+        const oldActive = canvasWrapper.querySelectorAll('.active-scrolled-highlight');
+        oldActive.forEach(el => el.classList.remove('active-scrolled-highlight'));
+        
+        const targetHighlightElement = canvasWrapper.querySelector(`.persistent-highlight[data-highlight-id="${activeHighlightId}"]`);
+        if (targetHighlightElement) {
+          targetHighlightElement.classList.add('active-scrolled-highlight');
+        }
+      }
+    }
+  }, [activeHighlightId, currentPage, scale, pageRenderKey]); // Dependencies that cause re-render of highlights
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* PDF Controls */}
+      <div style={{ 
+        padding: '10px 15px', 
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        display: 'flex',
+        gap: '10px',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backdropFilter: 'blur(10px)',
+      }}>
+        <button 
+          onClick={goToPreviousPage} 
+          disabled={currentPage <= 1 || loading}
+          style={{ 
+            padding: '8px 12px',
+            cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: 'none',
+            borderRadius: '8px',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: currentPage <= 1 ? 0.5 : 1,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        
+        <div style={{ 
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 15px',
+          color: 'rgba(255, 255, 255, 0.9)',
+          fontSize: '0.9rem',
+          background: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: '8px',
+          minWidth: '80px',
+        }}>
+          {currentPage} / {totalPages || '?'}
+        </div>
+        
+        <button 
+          onClick={goToNextPage} 
+          disabled={currentPage >= totalPages || loading}
+          style={{ 
+            padding: '8px 12px',
+            cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: 'none',
+            borderRadius: '8px',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: currentPage >= totalPages ? 0.5 : 1,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button 
+            onClick={zoomOut} 
+            style={{ 
+              padding: '8px 12px',
+              cursor: 'pointer',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '8px',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+          </button>
+          
+          <div style={{ 
+            color: 'rgba(255, 255, 255, 0.9)',
+            fontSize: '0.9rem',
+            minWidth: '50px',
+            textAlign: 'center',
+          }}>
+            {Math.round(scale * 100)}%
+          </div>
+          
+          <button 
+            onClick={zoomIn} 
+            style={{ 
+              padding: '8px 12px',
+              cursor: 'pointer',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '8px',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="16"></line>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      {/* Status display */}
+      {loadingStatus && (
+        <div style={{ 
+          padding: '8px 15px',
+          backgroundColor: 'rgba(44, 83, 100, 0.5)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          color: 'rgba(255, 255, 255, 0.8)',
+          fontSize: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          <div style={{
+            width: '16px',
+            height: '16px',
+            borderRadius: '50%',
+            borderTop: '2px solid rgba(255, 255, 255, 0.8)',
+            borderRight: '2px solid transparent',
+            animation: 'spin 1s linear infinite',
+          }}></div>
+          {loadingStatus}
+        </div>
+      )}
+      
+      {/* PDF Content */}
+      <div style={{ 
+        flex: 1, 
+        overflow: 'auto',
+        backgroundColor: '#0c1821',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        padding: '20px',
+        position: 'relative',
+        ...pdfContentStyle,
+      }}>
+        {loading && !pdfDocument ? (
+          <div style={{ 
+            padding: '30px', 
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: 'white',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '15px',
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              borderTop: '3px solid white',
+              borderRight: '3px solid transparent',
+              animation: 'spin 1s linear infinite',
+            }}></div>
+            <div>{loadingStatus || 'Loading...'}</div>
+          </div>
+        ) : error ? (
+          <div style={{ 
+            padding: '30px', 
+            backgroundColor: 'rgba(178, 34, 34, 0.1)',
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: 'white',
+            maxWidth: '500px',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '15px',
+              color: '#ff6b6b',
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <h3 style={{ margin: 0 }}>Error Loading PDF</h3>
+            </div>
+            <p style={{ margin: '0 0 15px 0' }}>{error}</p>
+            <p style={{ margin: 0, opacity: 0.8 }}>Make sure you selected a valid PDF file.</p>
+          </div>
+        ) : (
+          <div 
+            ref={containerRef} 
+            style={{ 
+              backgroundColor: 'white',
+              boxShadow: '0 4px 30px rgba(0, 0, 0, 0.3)',
+              borderRadius: '8px',
+              overflow: 'hidden',
+            }}
+          ></div>
+        )}
+        
+        {/* Selection Tooltip - NEW CIRCULAR DESIGN */}
+        {selectionTooltip.visible && (
+          <div 
+            ref={tooltipRef}
+            onMouseDown={e => e.stopPropagation()}
+            onMouseUp={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: selectionTooltip.x,
+              top: selectionTooltip.y,
+              width: '44px',
+              height: '44px',
+              backgroundColor: 'rgba(42, 49, 65, 0.95)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '50%',
+              padding: '0',
+              boxShadow: '0 6px 25px rgba(0, 0, 0, 0.3)',
+              color: 'white',
+              zIndex: 9999,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              pointerEvents: 'auto', 
+            }}
+          >
+            <button
+              style={{
+                width: '100%',
+                height: '100%',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '50%',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAskAI('default');
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+export default PDFViewer;
+</file>
+
+<file path="src/renderer/components/AIPanel.jsx">
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+
+// Small UUID helper
+const uuid = () => Math.random().toString(36).substr(2, 9);
+
+const AIPanel = forwardRef(({
+  selectedText,
+  selectedStyle,
+  customPrompt,
+  setCustomPrompt,
+  onClose,
+  newChatCount,
+  onGoToHighlight,
+  selectedLocation,
+  onRemoveHighlight,
+  fullPdfText
+}, ref) => {
+  // multiple chat sessions
+  const [sessions, setSessions] = useState([
+    { id: uuid(), title: 'Chat 1', messages: [], highlightId: null }
+  ]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [showStyleChooser, setShowStyleChooser] = useState(false);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
+  const chatContainerRef = useRef(null);
+  const inputRef = useRef(null);
+  const [lastSelectedText, setLastSelectedText] = useState('');
+
+  // State for PDF context inclusion prompt
+  const [showPdfContextPrompt, setShowPdfContextPrompt] = useState(false);
+  const [userChoseToIncludeContext, setUserChoseToIncludeContext] = useState(false);
+
+  // Ref to keep track of the current streaming AI message ID and its stream ID (for EXPLAIN)
+  const currentStreamingMessageRef = useRef({ messageId: null, streamId: null });
+
+  // Ref to track the active stream ID for CHAT
+  const activeChatStreamIdRef = useRef(null);
+
+  // --- Callbacks for EXPLAIN stream ---
+  const handleExplainChunk = useCallback((chunk) => {
+    const { streamId: chunkStreamId, type, content, isLastChunk } = chunk;
+    const activeMessageId = currentStreamingMessageRef.current.messageId;
+    const activeStreamId = currentStreamingMessageRef.current.streamId;
+    if (chunkStreamId !== activeStreamId || !activeMessageId) return;
+    setSessions(prevSessions => {
+      const sessionIndexToUpdate = currentIdx;
+      const newSessions = [...prevSessions];
+      const currentSession = newSessions[sessionIndexToUpdate];
+      if (!currentSession) return prevSessions;
+      const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+      if (msgIndex === -1) return prevSessions;
+      const existingMessage = currentSession.messages[msgIndex];
+      let updatedMessage = { ...existingMessage };
+      if (type === 'error') {
+        updatedMessage.content = `Error: ${content}`;
+        updatedMessage.isError = true;
+        setIsTyping(false);
+        currentStreamingMessageRef.current = { messageId: null, streamId: null };
+      } else if (type === 'status') {
+        updatedMessage.content = content;
+      } else if (type === 'content') {
+        const newContent = (existingMessage.content === "⏳ Receiving explanation...")
+          ? content
+          : (existingMessage.content || '') + content;
+        updatedMessage.content = newContent;
+        updatedMessage.isError = false;
+      }
+      currentSession.messages[msgIndex] = updatedMessage;
+      return newSessions;
+    });
+  }, [currentIdx]);
+
+  const handleExplainEnd = useCallback((endedStreamId) => {
+    if (endedStreamId === currentStreamingMessageRef.current.streamId) {
+      setIsTyping(false);
+      currentStreamingMessageRef.current = { messageId: null, streamId: null };
+    }
+  }, []);
+
+  const handleExplainError = useCallback((errorInfo) => {
+    if (errorInfo.streamId === currentStreamingMessageRef.current.streamId) {
+      const activeMessageId = currentStreamingMessageRef.current.messageId;
+      setSessions(prevSessions => {
+        const sessionIndexToUpdate = currentIdx;
+        const newSessions = [...prevSessions];
+        const currentSession = newSessions[sessionIndexToUpdate];
+        if (!currentSession || !activeMessageId) return prevSessions;
+        const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+        if (msgIndex !== -1) {
+          currentSession.messages[msgIndex] = { 
+            ...currentSession.messages[msgIndex], 
+            content: `Error: ${errorInfo.message || 'Unknown error during explanation.'}`, 
+            isError: true 
+          };
+        } else {
+          currentSession.messages.push({ 
+            id: uuid(), type: 'ai', 
+            content: `Error: ${errorInfo.message || 'Unknown error during explanation.'}`, 
+            timestamp: new Date().toISOString(), isError: true 
+          });
+        }
+        return newSessions;
+      });
+      setIsTyping(false);
+      currentStreamingMessageRef.current = { messageId: null, streamId: null };
+    }
+  }, [currentIdx]);
+
+  // --- Callbacks for CHAT stream (NEW IMPLEMENTATION) ---
+  const handleChatChunk = useCallback((chunk) => {
+    const { streamId: chunkStreamId, type, content, isLastChunk } = chunk;
+    const activeMessageId = activeChatStreamIdRef.current?.messageId; // Using a new structure for chat stream ref
+    const activeStreamId = activeChatStreamIdRef.current?.streamId;
+
+    // console.log(`AIPanel ChatChunk: Received chunk for stream ${chunkStreamId}, active stream is ${activeStreamId}, active message is ${activeMessageId}`);
+    // console.log('Chat Chunk content:', chunk);
+
+    if (chunkStreamId !== activeStreamId || !activeMessageId) {
+      // console.log('AIPanel ChatChunk: Mismatched stream or no active message. Ignoring.');
+      return;
+    }
+
+    setSessions(prevSessions => {
+      const sessionIndexToUpdate = currentIdx;
+      const newSessions = [...prevSessions];
+      const currentSession = newSessions[sessionIndexToUpdate];
+
+      if (!currentSession) return prevSessions;
+
+      const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+      if (msgIndex === -1) {
+        // console.warn('AIPanel ChatChunk: AI placeholder message not found for ID:', activeMessageId);
+        return prevSessions; 
+      }
+
+      const existingMessage = currentSession.messages[msgIndex];
+      let updatedMessage = { ...existingMessage };
+
+      if (type === 'error') {
+        updatedMessage.content = `Chat Error: ${content}`;
+        updatedMessage.isError = true;
+        setIsTyping(false);
+        activeChatStreamIdRef.current = null; // Clear chat stream ref
+      } else if (type === 'status') {
+        updatedMessage.content = content; // e.g., "AI is thinking..."
+      } else if (type === 'content') {
+        const newContent = (existingMessage.content === "⏳ AI is thinking...") // Placeholder for chat
+          ? content
+          : (existingMessage.content || '') + content;
+        updatedMessage.content = newContent;
+        updatedMessage.isError = false;
+      }
+      
+      currentSession.messages[msgIndex] = updatedMessage;
+      return newSessions;
+    });
+  }, [currentIdx]);
+
+  const handleChatEnd = useCallback((endedStreamId) => {
+    // console.log(`AIPanel ChatEnd: Stream ${endedStreamId} ended. Active stream: ${activeChatStreamIdRef.current?.streamId}`);
+    if (endedStreamId === activeChatStreamIdRef.current?.streamId) {
+      setIsTyping(false);
+      activeChatStreamIdRef.current = null; // Clear chat stream ref
+    }
+  }, [/* No direct state dependencies other than currentIdx handled by closure */]);
+
+  const handleChatError = useCallback((errorInfo) => {
+    // console.error('AIPanel ChatError:', errorInfo);
+    if (errorInfo.streamId === activeChatStreamIdRef.current?.streamId) {
+      const activeMessageId = activeChatStreamIdRef.current?.messageId;
+      
+      setSessions(prevSessions => {
+        const sessionIndexToUpdate = currentIdx;
+        const newSessions = [...prevSessions];
+        const currentSession = newSessions[sessionIndexToUpdate];
+
+        if (!currentSession || !activeMessageId) return prevSessions;
+
+        const msgIndex = currentSession.messages.findIndex(m => m.id === activeMessageId && m.type === 'ai');
+        if (msgIndex !== -1) {
+          currentSession.messages[msgIndex] = { 
+            ...currentSession.messages[msgIndex], 
+            content: `Chat Error: ${errorInfo.message || 'Unknown error during chat.'}`, 
+            isError: true 
+          };
+        } else {
+          currentSession.messages.push({ 
+            id: uuid(), type: 'ai', 
+            content: `Chat Error: ${errorInfo.message || 'Unknown error during chat.'}`, 
+            timestamp: new Date().toISOString(), isError: true 
+          });
+        }
+        return newSessions;
+      });
+
+      setIsTyping(false);
+      activeChatStreamIdRef.current = null; // Clear chat stream ref
+    }
+  }, [currentIdx]);
+
+  // Effect to handle new text selection
+  useEffect(() => {
+    if (selectedText && selectedText !== lastSelectedText) {
+      setShowCustomPrompt(true);
+      setCustomPrompt('');
+      // addUserMessageToSession(selectedText); // Commented out to prevent auto-adding
+      setLastSelectedText(selectedText);
+      // Cancel any ongoing explanation stream if user selects new text
+      if (currentStreamingMessageRef.current.streamId) {
+        console.log(`AIPanel: New text selected, cleaning up old stream: ${currentStreamingMessageRef.current.streamId}`);
+        // We don't have a direct "cancel" to send to main, but we can stop listening.
+        // Actual cancellation would require more IPC.
+        currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
+      }
+    }
+  }, [selectedText, lastSelectedText]);
+
+  // Auto-scroll to bottom of chat when messages change
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [sessions]);
+
+  // Focus on input based on mode (custom prompt or follow-up)
+  useEffect(() => {
+    if (showCustomPrompt && inputRef.current) {
+      inputRef.current.focus();
+    } else if (!showCustomPrompt && inputRef.current && sessions[currentIdx]?.messages.length > 0 && !isTyping) {
+      // Only focus for follow-up if not in custom prompt mode and there are messages
+      inputRef.current.focus();
+    }
+  }, [showCustomPrompt, currentIdx, sessions, isTyping, inputRef]);
+
+  // whenever parent does "newChatCount++", create a new session
+  useEffect(() => {
+    if (newChatCount < 1) return;
+    setSessions(prev => {
+      const id = uuid();
+      const next  = [...prev, { id, title: `Chat ${prev.length+1}`, messages: [], highlightId: null }];
+      setCurrentIdx(next.length - 1);
+      return next;
+    });
+    setCustomPrompt('');
+    setShowCustomPrompt(false);
+    setShowStyleChooser(false);
+    setLastSelectedText('');
+  }, [newChatCount]);
+
+  // --- useEffect for setting up IPC Listeners (UPDATED) ---
+  useEffect(() => {
+    // console.log('AIPanel: Setting up IPC listeners.');
+
+    const unsubExplainChunk = window.electron.onExplainChunk(handleExplainChunk);
+    const unsubExplainEnd = window.electron.onExplainEnd(handleExplainEnd);
+    const unsubExplainError = window.electron.onExplainError(handleExplainError);
+
+    // Add CHAT listeners
+    const unsubChatChunk = window.electron.onChatChunk(handleChatChunk);
+    const unsubChatEnd = window.electron.onChatEnd(handleChatEnd);
+    const unsubChatError = window.electron.onChatError(handleChatError);
+
+    return () => {
+      // console.log('AIPanel: Cleaning up IPC listeners.');
+      if (unsubExplainChunk) unsubExplainChunk();
+      if (unsubExplainEnd) unsubExplainEnd();
+      if (unsubExplainError) unsubExplainError();
+
+      if (unsubChatChunk) unsubChatChunk();
+      if (unsubChatEnd) unsubChatEnd();
+      if (unsubChatError) unsubChatError();
+    };
+  }, [handleExplainChunk, handleExplainEnd, handleExplainError, handleChatChunk, handleChatEnd, handleChatError]);
+
+  const addUserMessageToSession = (messageData, sessionIndex = currentIdx) => {
+    const newMessageId = uuid();
+    setSessions(s => {
+      const copy = [...s];
+      if (!copy[sessionIndex]) {
+        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [], highlightId: null };
+      }
+
+      let messageToAdd;
+      if (typeof messageData === 'object' && messageData.actionType === 'goToHighlight') {
+        messageToAdd = {
+          id: newMessageId,
+          type: 'user',
+          content: messageData.text, // The actual instruction string
+          action: {
+            type: messageData.actionType,
+            label: messageData.actionLabel,
+            location: messageData.actionLocation
+          },
+          timestamp: new Date().toISOString()
+        };
+      } else { // Existing behavior for plain string messages (like from handleSendMessage)
+        messageToAdd = {
+          id: newMessageId,
+          type: 'user',
+          content: messageData, // messageData is a string in this case
+          timestamp: new Date().toISOString()
+        };
+      }
+      copy[sessionIndex].messages.push(messageToAdd);
+      return copy;
+    });
+    return newMessageId;
+  };
+
+  const addAIMessageToSession = (text, error = false, sessionIndex = currentIdx, messageIdToUse = null) => {
+    const newMessageId = messageIdToUse || uuid();
+    setSessions(s => {
+      const copy = [...s];
+      if (!copy[sessionIndex]) {
+        copy[sessionIndex] = { id: uuid(), title: `Chat ${sessionIndex + 1}`, messages: [], highlightId: null };
+      }
+      // If it's an update to an existing streaming message, find and update
+      const existingMsg = messageIdToUse ? copy[sessionIndex].messages.find(m => m.id === messageIdToUse) : null;
+      if (existingMsg) {
+        existingMsg.content = text; // Replace content (or append if streaming logic is here)
+        existingMsg.isError = error;
+      } else {
+        copy[sessionIndex].messages.push({
+          id: newMessageId, type: 'ai', content: text,
+          timestamp: new Date().toISOString(), isError: error
+        });
+      }
+      return copy;
+    });
+    return newMessageId;
+  };
+
+  const generateInitialExplanation = async (textForExplanation, explanationStylePrompt) => {
+    if (!textForExplanation || !explanationStylePrompt) {
+      console.warn("Text for explanation or style prompt is missing.");
+      addAIMessageToSession("Could not generate explanation: missing text or instructions.", true);
+      return;
+    }
+    
+    // Associate highlightId with the current session
+    if (selectedLocation && selectedLocation.id) {
+      setSessions(prevSessions => {
+        const newSessions = [...prevSessions];
+        // Ensure currentIdx is valid and session exists
+        if (newSessions[currentIdx]) {
+          newSessions[currentIdx].highlightId = selectedLocation.id;
+        }
+        return newSessions;
+      });
+    }
+    
+    const userMessageObject = {
+      text: explanationStylePrompt, // This is the user's "how you want the AI response"
+      actionType: 'goToHighlight',
+      actionLabel: 'View Highlighted PDF Section', // Button text
+      actionLocation: selectedLocation // Prop received from App.jsx
+    };
+    addUserMessageToSession(userMessageObject);
+
+    const placeholderMessageId = uuid();
+    console.log(`AIPanel generateInitialExplanation: placeholderMessageId generated for AI msg: "${placeholderMessageId}"`);
+    addAIMessageToSession("⏳ Receiving explanation...", false, currentIdx, placeholderMessageId); 
+
+    const currentStreamId = uuid(); 
+    
+    // Directly assign values
+    currentStreamingMessageRef.current.messageId = placeholderMessageId;
+    currentStreamingMessageRef.current.streamId = currentStreamId;
+    
+    console.log(`AIPanel generateInitialExplanation: currentStreamingMessageRef SET TO:`, JSON.stringify(currentStreamingMessageRef.current));
+
+    setIsTyping(true);
+    setShowCustomPrompt(false);
+
+    console.log(`AIPanel: Calling window.electron.aiExplain with streamId: ${currentStreamId}, text: "${textForExplanation.substring(0,50)}...", style: "${explanationStylePrompt}"`);
+    window.electron.aiExplain(textForExplanation, explanationStylePrompt, currentStreamId);
+
+    // The response and any errors will come via the 'onExplainChunk' and 'onExplainError' listeners.
+    // setIsTyping(false) will be handled by the last chunk or error handler.
+  };
+
+  // MODIFIED handleSendMessage to use streaming
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() && !userChoseToIncludeContext) return; // Ensure there's input or context to send
+    
+    const originalUserQuery = inputMessage.trim();
+    let contentForBackend = originalUserQuery;
+    let contentForUI = originalUserQuery;
+
+    const currentSessionFromState = sessions[currentIdx];
+    const currentMessagesFromState = currentSessionFromState?.messages || [];
+    const isFirstUserMessageInLogic = currentMessagesFromState.filter(m => m.type === 'user').length === 0;
+
+    if (userChoseToIncludeContext && fullPdfText && isFirstUserMessageInLogic) {
+      const backendContextPrefix = `Context from PDF:\n"""${fullPdfText}"""\n\n`;
+      const uiContextMessage = `[Full PDF context included]`;
+
+      if (originalUserQuery) {
+        contentForBackend = `${backendContextPrefix}My question:\n${originalUserQuery}`;
+        contentForUI = `${uiContextMessage}\n\nMy question:\n${originalUserQuery}`;
+      } else {
+        contentForBackend = `${backendContextPrefix}What are the key points of the above text?`;
+        contentForUI = `${uiContextMessage}\n\nAsking about key points of the PDF.`;
+      }
+      setUserChoseToIncludeContext(false); // Reset for next message
+      setShowPdfContextPrompt(false); // Hide prompt after use
+    }
+
+    if (!contentForBackend && !contentForUI) { // Should only happen if both are empty initially and context wasn't added.
+      console.warn("handleSendMessage: No content for backend or UI.");
+      return; 
+    }
+
+    // This is the user message object that will be part of the array sent to the backend
+    const newUserMessageForBackend = { role: 'user', content: contentForBackend };
+
+    // Prepare the full list of messages to send to the backend *before* updating React state for the UI
+    const previousMessagesForBackend = currentMessagesFromState
+      .filter(msg => (msg.type === 'user' || msg.type === 'ai') && msg.content !== "⏳ AI is thinking...")
+      .map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content // These are already UI-formatted; if one was a [Full PDF context...] it will be sent as such.
+                            // This is generally fine as history messages are just context for the AI.
+      }));
+    
+    const messagesToSendToBackend = [...previousMessagesForBackend, newUserMessageForBackend];
+
+    // Now, update the React state for the UI.
+    const newUserMessageForUI_object = {
+        id: uuid(), 
+        type: 'user', 
+        content: contentForUI, // Use the UI-specific content here
+        timestamp: new Date().toISOString()
+    };
+    const placeholderAiMessageId = uuid();
+
+    setSessions(s => {
+        const sessionsCopy = [...s];
+        const targetSession = sessionsCopy[currentIdx];
+        if (targetSession) {
+            targetSession.messages.push(newUserMessageForUI_object); // Add user's message for UI
+            targetSession.messages.push({ // Add AI placeholder for UI
+                id: placeholderAiMessageId, type: 'ai', content: "⏳ AI is thinking...",
+                timestamp: new Date().toISOString(), isError: false
+            });
+        }
+        return sessionsCopy;
+    });
+    
+    setInputMessage('');
+    setIsTyping(true);
+
+    // Abort any ongoing explanation stream if user sends a chat message
+    if (currentStreamingMessageRef.current.streamId) {
+        currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
+    }
+    // Abort any previous chat stream
+    if (activeChatStreamIdRef.current?.streamId) {
+        activeChatStreamIdRef.current = null;
+    }
+
+    const newChatStreamId = uuid();
+    activeChatStreamIdRef.current = { messageId: placeholderAiMessageId, streamId: newChatStreamId };
+
+    // Log what is being sent to the main process
+    console.log('AIPanel.jsx: Sending messages to main process:', JSON.stringify(messagesToSendToBackend, null, 2));
+
+    if (messagesToSendToBackend.filter(m=>m.role==='user').length === 0) {
+        console.error("AIPanel.jsx: CRITICAL ERROR - No user messages in payload to backend!");
+    }
+
+    try {
+      window.electron.aiChatStream(messagesToSendToBackend, newChatStreamId);
+    } catch (error) {
+      console.error('AIPanel.jsx: Exception calling aiChatStream setup:', error);
+      // Revert UI state for AI placeholder to error
+      setSessions(prevSessions => {
+          const sessionsCopy = [...prevSessions];
+          const targetSession = sessionsCopy[currentIdx];
+          if (targetSession) {
+              const msgIndex = targetSession.messages.findIndex(m => m.id === placeholderAiMessageId);
+              if (msgIndex !== -1) {
+                  targetSession.messages[msgIndex] = {
+                      ...targetSession.messages[msgIndex],
+                      content: 'Sorry, I encountered an error starting the chat. Please try again.',
+                      isError: true,
+                  };
+              }
+          }
+          return sessionsCopy;
+      });
+      setIsTyping(false);
+      activeChatStreamIdRef.current = null; // Clear ref on error
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (showCustomPrompt) {
+        handleSubmitCustomPrompt();
+      } else {
+        handleSendMessage();
+      }
+    }
+  };
+
+  const handleSubmitCustomPrompt = () => {
+    if (!customPrompt.trim() || !lastSelectedText) return;
+    generateInitialExplanation(lastSelectedText, customPrompt);
+    setCustomPrompt(''); // Clear the input field after submission
+  };
+
+  // Format timestamp to readable time
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Modified to allow deleting the last chat
+  const handleRemoveSession = (idx = currentIdx) => {
+    // Get the highlightId from the session to be removed and call onRemoveHighlight
+    const sessionToRemove = sessions[idx]; // Use direct sessions state here before it's updated
+    if (sessionToRemove && sessionToRemove.highlightId && onRemoveHighlight) {
+      onRemoveHighlight(sessionToRemove.highlightId);
+    }
+
+    setSessions(s => {
+      if (s.length <= 1) {
+        const id = uuid();
+        setCurrentIdx(0);
+        // Reset the last chat session with highlightId: null
+        return [{ id, title: 'Chat 1', messages: [], highlightId: null }];
+      }
+      
+      const filtered = s.filter((_, i) => i !== idx);
+      const renumbered = filtered.map((sess, i) => ({
+        ...sess,
+        title: `Chat ${i + 1}`
+      }));
+      setCurrentIdx(ci => {
+          const newIndex = Math.min(Math.max(0, ci === idx ? idx -1 : ci), renumbered.length - 1);
+          return newIndex < 0 ? 0 : newIndex;
+      });
+      return renumbered;
+    });
+  };
+
+  // wrap panel-close so empty sessions get purged
+  const handleClose = () => {
+    if (sessions.length > 1 && sessions[currentIdx]?.messages.length === 0) {
+      handleRemoveSession(currentIdx);
+    }
+    onClose();
+  };
+
+  // Expose switchToEmptyChat to parent via ref
+  useImperativeHandle(ref, () => ({
+    addMessageFromOutside: (text, type = 'ai') => {
+      addAIMessageToSession(text, type === 'error');
+    },
+    focusInput: () => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    },
+    // CORRECTED switchToEmptyChat - this is called by App.jsx for the TOP RIGHT new chat button
+    switchToEmptyChat: () => {
+      // Check if already on an empty chat to avoid creating multiple ones unnecessarily
+      const currentSession = sessions[currentIdx];
+      if (currentSession && currentSession.messages.length === 0 && !currentSession.highlightId) {
+        if (fullPdfText && fullPdfText.trim() !== '') {
+          setShowPdfContextPrompt(true);
+          setUserChoseToIncludeContext(false); // Reset choice
+        }
+        setInputMessage(''); 
+        setShowCustomPrompt(false);
+        return true; // Indicate it's already on an empty suitable chat
+      }
+
+      // Create a new session if no suitable empty one is currently active
+      const newId = uuid();
+      const newSession = { id: newId, title: `Chat ${sessions.length + 1}`, messages: [], highlightId: null };
+      const newSessions = [...sessions, newSession];
+      setSessions(newSessions);
+      setCurrentIdx(newSessions.length - 1);
+      setInputMessage(''); 
+      setShowCustomPrompt(false);
+
+      if (fullPdfText && fullPdfText.trim() !== '') {
+        setShowPdfContextPrompt(true); // Show prompt for the new empty chat
+        setUserChoseToIncludeContext(false); // Reset choice
+      }
+      return true; // Indicate a new empty chat was created/switched to
+    }
+  }));
+
+  const currentMessages = sessions[currentIdx]?.messages || [];
+  const isChatEmpty = currentMessages.length === 0;
+
+  let emptyStatePlaceholderText = "Select text in the PDF or type a question below to start chatting.";
+  let showEmptyStateIcon = true; // true for static icon, false for spinner
+
+  if (isChatEmpty) {
+    if (isTyping && (currentStreamingMessageRef.current.messageId || activeChatStreamIdRef.current?.messageId)) {
+      // AI is typing for a new stream (explanation or chat) in an empty panel
+      if (currentStreamingMessageRef.current.messageId) {
+        emptyStatePlaceholderText = "AI is analyzing your highlighted text...";
+      } else { // activeChatStreamIdRef must be set if this branch is hit
+        emptyStatePlaceholderText = "AI is formulating a response...";
+      }
+      showEmptyStateIcon = false; // Show spinner
+    } else { // Not typing, or typing but not for a new stream in an empty panel.
+             // This is the truly static empty state.
+      if (showCustomPrompt && selectedText) {
+        emptyStatePlaceholderText = `Review your query about "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}" or type a new one.`;
+      } else if (selectedText && !showCustomPrompt) { 
+        emptyStatePlaceholderText = `Selected text: "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}". Ask a question or request an explanation.`;
+      }
+      // Default "Select text..." is already set for emptyStatePlaceholderText
+      // showEmptyStateIcon remains true for the static icon
+    }
+  }
+
+  return (
+    <div style={{ 
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: 'rgba(15, 32, 39, 0.95)',
+      backdropFilter: 'blur(10px)',
+    }}>
+      {/* Header: chat selector + new chat */}
+      <div style={{ 
+        padding: '15px',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        background: 'rgba(44, 83, 100, 0.4)',
+      }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+          <div style={{ display:'flex', gap: '8px', alignItems:'center' }}>
+            {/* New Chat button INSIDE AIPanel header */}
+            <button onClick={() => {
+              // Clear any active stream and typing indicators first
+              if (currentStreamingMessageRef.current.streamId) { 
+                currentStreamingMessageRef.current = { messageId: null, streamId: null }; 
+              }
+              if (activeChatStreamIdRef.current?.streamId) {
+                activeChatStreamIdRef.current = null;
+              }
+              setIsTyping(false);
+
+              // Try to find an existing, truly empty chat (no messages, no highlight ID)
+              const idx = sessions.findIndex(s => s.messages.length === 0 && !s.highlightId);
+              
+              if (idx !== -1) { // Found an existing empty chat
+                setCurrentIdx(idx);
+                setCustomPrompt('');
+                setShowCustomPrompt(false);
+                setInputMessage(''); // Clear input message
+                // Show PDF context prompt if applicable
+                if (fullPdfText && fullPdfText.trim() !== '') {
+                  setShowPdfContextPrompt(true);
+                  setUserChoseToIncludeContext(false);
+                } else {
+                  setShowPdfContextPrompt(false); // Explicitly hide if no PDF text
+                }
+              } else { // No suitable empty chat found, create a new one
+                const newId = uuid();
+                const newSession = { 
+                  id: newId, 
+                  title: `Chat ${sessions.length + 1}`, // Title based on current length before adding
+                  messages: [], 
+                  highlightId: null 
+                };
+                // Use functional update for sessions to correctly get the new index
+                setSessions(prevSessions => {
+                  const updatedSessions = [...prevSessions, newSession];
+                  setCurrentIdx(updatedSessions.length - 1); 
+                  return updatedSessions;
+                });
+                setCustomPrompt('');
+                setShowCustomPrompt(false);
+                setInputMessage(''); // Clear input message
+                // Show PDF context prompt if applicable for the new chat
+                if (fullPdfText && fullPdfText.trim() !== '') {
+                  setShowPdfContextPrompt(true);
+                  setUserChoseToIncludeContext(false);
+                } else {
+                  setShowPdfContextPrompt(false); // Explicitly hide if no PDF text
+                }
+              }
+            }} style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              transition: 'background 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+
+            {/* Chat dropdown (now uses rgba(44,83,100,0.4) background) */}
+            <select
+              className="chat-select"
+              value={sessions[currentIdx]?.id || ''}
+              onChange={e => {
+                if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; }
+                const idx = sessions.findIndex(s => s.id === e.target.value);
+                if (idx >= 0) setCurrentIdx(idx);
+              }}
+              style={{
+                backgroundColor: 'rgba(44, 83, 100, 0.4)',  // ← updated to match header
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '0.9rem',
+                appearance: 'none',
+              }}
+            >
+              {sessions.map((s,i) => (
+                <option key={s.id} value={s.id}>{s.title}</option>
+              ))}
+            </select>
+
+            {/* Remove current chat */}
+            <button
+              onClick={() => { if (currentStreamingMessageRef.current.streamId && sessions[currentIdx]?.id === sessions.find((s,i)=>i === currentIdx)?.id ) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleRemoveSession(currentIdx);}}
+              title="Remove Chat"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'white',  // Always enabled now
+                cursor: 'pointer',  // Always enabled now
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                <path d="M10 11v6"/>
+                <path d="M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <h3 style={{
+          margin: 0,
+          fontWeight: '600',
+          fontSize: '1.1rem',
+          color: 'white',
+          textAlign: 'center',
+        }}>
+          AI Chat Assistant
+        </h3>
+        
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={()=>{ if (currentStreamingMessageRef.current.streamId) { currentStreamingMessageRef.current = { messageId: null, streamId: null }; } handleClose();}}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              transition: 'background 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      {/* Custom Prompt Input (shown only when text is selected and prompt hasn't been submitted yet) */}
+      {/* REMOVED entire block for top custom prompt input:
+      {showCustomPrompt && selectedText && !isTyping && (
+        ...
+      )}
+      */}
+      
+      {/* Chat messages */}
+      <div 
+        ref={chatContainerRef}
+        style={{ 
+          flexGrow: 1, 
+          padding: '20px', 
+          overflowY: 'auto', 
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '18px', // Increased gap for better message separation
+        }}
+      >
+        {isChatEmpty ? (
+          // Full-panel placeholder for truly empty chat (static or AI typing for the first time)
+          <div style={{
+            textAlign: 'center',
+            color: showEmptyStateIcon ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.6)',
+            fontSize: '0.9rem',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexGrow: 1, 
+            fontStyle: showEmptyStateIcon ? 'italic' : 'normal',
+          }}>
+            {showEmptyStateIcon ? (
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3, marginBottom: '15px' }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                <line x1="9" y1="10" x2="15" y2="10"></line>
+                <line x1="9" y1="13" x2="14" y2="13"></line>
+              </svg>
+            ) : (
+              <div style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                borderTop: '3px solid rgba(255, 255, 255, 0.7)',
+                borderRight: '3px solid transparent',
+                animation: 'spin 1s linear infinite',
+                marginBottom: '15px',
+              }}></div>
+            )}
+            {emptyStatePlaceholderText}
+          </div>
+        ) : (
+          // If chat is not empty, render all messages
+          currentMessages.map((message) => (
+            <div 
+              key={message.id}
+              style={{
+                width: '100%',
+              }}
+            >
+              {/* Sender label */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '4px',
+                paddingLeft: '2px',
+              }}>
+                <div style={{
+                  color: message.type === 'user' ? '#4f8cb5' : '#c3e9ff',
+                  fontSize: '0.75rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}>
+                  {message.type === 'ai' ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  )}
+                  {message.type === 'ai' ? 'AI Assistant' : 'You'}
+                </div>
+                <div style={{ 
+                  fontSize: '0.7rem',
+                  color: 'rgba(255, 255, 255, 0.4)',
+                  marginLeft: '8px',
+                }}>
+                  {formatTime(message.timestamp)}
+                </div>
+              </div>
+              
+              {/* Message content */}
+              <div style={{
+                background: message.type === 'user' 
+                  ? 'rgba(44, 83, 100, 0.4)' 
+                  : message.isError 
+                    ? 'rgba(178, 34, 34, 0.3)'
+                    : 'rgba(255, 255, 255, 0.05)',
+                padding: '14px 16px',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '0.9rem',
+                lineHeight: '1.5',
+                wordWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+              }}>
+                {message.action && message.action.type === 'goToHighlight' && message.type === 'user' && (
+                  <button
+                    onClick={() => {
+                      if (onGoToHighlight && message.action.location) {
+                        onGoToHighlight(message.action.location);
+                      } else {
+                        console.warn('onGoToHighlight not available or location missing for message action');
+                      }
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      marginBottom: '8px', 
+                      display: 'inline-block', 
+                      fontSize: '0.75rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    {message.action.label || 'View in PDF'}
+                  </button>
+                )}
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {message.content}
+                  {message.type === 'ai' && isTyping && currentStreamingMessageRef.current.messageId === message.id ? '...' : ''}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        
+        {/* Typing indicator: shown only if messages are present AND AI is typing a new stream that isn't yet in currentMessages */} 
+        {isTyping && !isChatEmpty && 
+         ((currentStreamingMessageRef.current.messageId && !currentMessages.find(m => m.id === currentStreamingMessageRef.current.messageId)) || 
+          (activeChatStreamIdRef.current?.messageId && !currentMessages.find(m => m.id === activeChatStreamIdRef.current?.messageId))) && 
+        (
+          <div style={{
+            width: '100%',
+            background: 'rgba(255, 255, 255, 0.05)',
+            padding: '12px 16px',
+            borderRadius: '6px',
+            animation: 'fadeIn 0.3s ease-out',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+          }}>
+            <div style={{ 
+              color: '#c3e9ff',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+            }}>
+              <span style={{ marginRight: '8px' }}>AI is typing</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[0,1,2].map(i => <div key={i} style={{ width: '5px', height: '5px', backgroundColor: 'currentColor', borderRadius: '50%', opacity: 0.8, animation: `pulse 1s infinite ${i * 0.2}s`}}></div>)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PDF Context Prompt */} 
+        {showPdfContextPrompt && sessions[currentIdx] && sessions[currentIdx].messages.length === 0 && (
+          <div style={{
+            padding: '10px 15px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '8px',
+            margin: '10px 0',
+            textAlign: 'center'
+          }}>
+            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.9)' }}>Include full PDF context?</p>
+            <button 
+              onClick={() => { 
+                setUserChoseToIncludeContext(true); 
+                setShowPdfContextPrompt(false); 
+                if (inputRef.current) inputRef.current.focus(); 
+                // Optionally send a default message if input is empty after choosing yes
+                if (!inputMessage.trim()) handleSendMessage(); // Auto-send if input is empty
+              }}
+              style={{ background: '#2c5364', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', marginRight: '10px', cursor: 'pointer' }}
+            >
+              Yes, Add Context
+            </button>
+            <button 
+              onClick={() => { 
+                setUserChoseToIncludeContext(false); 
+                setShowPdfContextPrompt(false); 
+                if (inputRef.current) inputRef.current.focus(); 
+              }}
+              style={{ background: 'rgba(255, 255, 255, 0.2)', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+            >
+              No, Start Fresh
+            </button>
+          </div>
+        )}
+      </div>
+      
+      {/* Input area */}
+      <div style={{ 
+        padding: '10px 15px 15px',
+        background: 'rgba(15, 32, 39, 0.95)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+      }}>
+        {showCustomPrompt && lastSelectedText && (
+          <button 
+            onClick={onGoToHighlight}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: 'white',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              padding: '3px 6px',
+              fontSize: '0.7rem',
+              cursor: 'pointer',
+              marginBottom: '5px',
+              display: 'block',
+            }}
+          >
+            Go to Highlight in PDF
+          </button>
+        )}
+        <div style={{ 
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: '10px',
+          background: 'rgba(255, 255, 255, 0.06)',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+        }}>
+          <textarea
+            ref={inputRef}
+            value={showCustomPrompt ? customPrompt : inputMessage}
+            onChange={(e) => showCustomPrompt ? setCustomPrompt(e.target.value) : setInputMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={showCustomPrompt ? "How would you like your response?" : "Ask a follow-up question..."}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              resize: 'none',
+              outline: 'none',
+              fontSize: '0.8rem',
+              lineHeight: '1.4',
+              minHeight: '24px',
+              maxHeight: '100px',
+              fontFamily: 'inherit',
+            }}
+            rows={1}
+            disabled={isTyping}
+          />
+          
+          <button
+            onClick={showCustomPrompt ? handleSubmitCustomPrompt : handleSendMessage}
+            disabled={isTyping || (showCustomPrompt ? !customPrompt.trim() : !inputMessage.trim())}
+            style={{
+              background: isTyping || (showCustomPrompt ? !customPrompt.trim() : !inputMessage.trim())
+                ? 'rgba(44, 83, 100, 0.3)' 
+                : 'linear-gradient(135deg, #2c5364, #203a43)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              width: '34px',
+              height: '34px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: isTyping || (showCustomPrompt ? !customPrompt.trim() : !inputMessage.trim())
+                ? 'not-allowed' 
+                : 'pointer',
+              transition: 'all 0.2s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              if ((showCustomPrompt ? customPrompt.trim() : inputMessage.trim()) && !isTyping) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #3a7a9e, #2c5364)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if ((showCustomPrompt ? customPrompt.trim() : inputMessage.trim()) && !isTyping) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #2c5364, #203a43)';
+              }
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+export default AIPanel;
+</file>
+
+</files>
