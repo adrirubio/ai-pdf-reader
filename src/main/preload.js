@@ -58,6 +58,39 @@ contextBridge.exposeInMainWorld('electron', {
   aiChatStream: (messages, streamId) => {
     console.log(`Preload: aiChatStream called. streamId: ${streamId}, messages count: ${messages?.length}`);
     ipcRenderer.send('ai:chat-stream-request', { messages, streamId });
+  },
+  
+  // New methods for persistent storage
+  storage: {
+    // Get recent documents from persistent storage
+    getRecentDocuments: () => {
+      console.log('Preload: getRecentDocuments called');
+      return ipcRenderer.invoke('storage:getRecentDocuments');
+    },
+    
+    // Get document data (chat sessions and highlights) for a specific file
+    getDocumentData: (filePath) => {
+      console.log(`Preload: getDocumentData called for: ${filePath}`);
+      return ipcRenderer.invoke('storage:getDocumentData', filePath);
+    },
+    
+    // Save chat sessions for a document
+    saveDocumentChats: (filePath, chatSessions) => {
+      console.log(`Preload: saveDocumentChats called for: ${filePath}`);
+      return ipcRenderer.invoke('storage:saveDocumentChats', { filePath, chatSessions });
+    },
+    
+    // Save highlights for a document
+    saveDocumentHighlights: (filePath, highlights) => {
+      console.log(`Preload: saveDocumentHighlights called for: ${filePath}`);
+      return ipcRenderer.invoke('storage:saveDocumentHighlights', { filePath, highlights });
+    },
+    
+    // Remove document data from persistent storage
+    removeDocumentData: (filePath) => {
+      console.log(`Preload: removeDocumentData called for: ${filePath}`);
+      return ipcRenderer.invoke('storage:removeDocumentData', filePath);
+    }
   }
 });
 

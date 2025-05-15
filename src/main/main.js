@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const aiService = require('./services/aiService.js');
+const storageService = require('./services/storageService.js');
 
 // --- Simple In-Memory Cache for Explanations ---
 const explanationCache = new Map();
@@ -68,6 +69,8 @@ function setupHandlers() {
 
     if (!canceled) {
       console.log("Selected file:", filePaths[0]);
+      // Add to recent documents when a file is opened
+      storageService.addRecentDocument(filePaths[0]);
       return filePaths[0];
     }
     return null;
@@ -190,6 +193,69 @@ function setupHandlers() {
     // This could involve calling a method in aiService or a new configuration service.
     // This is related to "AI preference settings UI" in Week 3, Task 3 for AIPanel.jsx
     return { status: "Preferences received (placeholder for ai:setPreferences)" };
+  });
+  
+  // --- NEW IPC HANDLERS FOR STORAGE SERVICE ---
+  
+  // Get recent documents
+  ipcMain.handle('storage:getRecentDocuments', async () => {
+    console.log("storage:getRecentDocuments was called");
+    try {
+      const recentDocs = storageService.getRecentDocuments();
+      console.log("Retrieved recent documents:", recentDocs.length);
+      return recentDocs;
+    } catch (error) {
+      console.error('Error getting recent documents:', error);
+      throw error;
+    }
+  });
+
+  // Get document data (chat sessions and highlights)
+  ipcMain.handle('storage:getDocumentData', async (event, filePath) => {
+    console.log("storage:getDocumentData was called for:", filePath);
+    try {
+      const documentData = storageService.getDocumentData(filePath);
+      return documentData;
+    } catch (error) {
+      console.error('Error getting document data:', error);
+      throw error;
+    }
+  });
+
+  // Save document chat sessions
+  ipcMain.handle('storage:saveDocumentChats', async (event, { filePath, chatSessions }) => {
+    console.log("storage:saveDocumentChats was called for:", filePath);
+    try {
+      const result = storageService.saveDocumentChats(filePath, chatSessions);
+      return result;
+    } catch (error) {
+      console.error('Error saving document chats:', error);
+      throw error;
+    }
+  });
+
+  // Save document highlights
+  ipcMain.handle('storage:saveDocumentHighlights', async (event, { filePath, highlights }) => {
+    console.log("storage:saveDocumentHighlights was called for:", filePath);
+    try {
+      const result = storageService.saveDocumentHighlights(filePath, highlights);
+      return result;
+    } catch (error) {
+      console.error('Error saving document highlights:', error);
+      throw error;
+    }
+  });
+
+  // Remove document data
+  ipcMain.handle('storage:removeDocumentData', async (event, filePath) => {
+    console.log("storage:removeDocumentData was called for:", filePath);
+    try {
+      const result = storageService.removeDocumentData(filePath);
+      return result;
+    } catch (error) {
+      console.error('Error removing document data:', error);
+      throw error;
+    }
   });
   
   console.log("IPC handlers setup complete (ai:explain & ai:chat use streaming).");

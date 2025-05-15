@@ -7,7 +7,7 @@ const initialState = {
   totalPages: 0,
   scale: 1.5,
   selectedText: '',
-  recentDocuments: [], // Store recently opened documents
+  recentDocuments: [], // Now stores objects with path, name, and lastAccessed
   loading: false,
   loadingStatus: '',
   error: null,
@@ -19,13 +19,9 @@ export const pdfSlice = createSlice({
   reducers: {
     setPdfPath: (state, action) => {
       state.filePath = action.payload;
-      // Add to recent documents if not already present
-      if (action.payload && !state.recentDocuments.includes(action.payload)) {
-        state.recentDocuments = [
-          action.payload,
-          ...state.recentDocuments.filter(path => path !== action.payload)
-        ].slice(0, 10); // Keep only the 10 most recent
-      }
+      // Note: We no longer update recentDocuments here directly
+      // This is now handled by the addOrUpdateRecentDocument action
+      // which will be dispatched along with setPdfPath
     },
     setPdfDocument: (state, action) => {
       state.pdfDocument = action.payload;
@@ -57,9 +53,27 @@ export const pdfSlice = createSlice({
         recentDocuments: state.recentDocuments, // Preserve recent documents
       };
     },
-    removeRecentDocument: (state, action) => {
+    // New actions for the enhanced recent documents feature
+    loadRecentDocuments: (state, action) => {
+      state.recentDocuments = action.payload;
+    },
+    addOrUpdateRecentDocument: (state, action) => {
+      const newDoc = action.payload;
+      // Remove existing entry if present
       state.recentDocuments = state.recentDocuments.filter(
-        path => path !== action.payload
+        doc => doc.path !== newDoc.path
+      );
+      // Add new document at the beginning of the list
+      state.recentDocuments = [
+        newDoc,
+        ...state.recentDocuments
+      ].slice(0, 10); // Keep only 10 most recent
+    },
+    removeRecentDocument: (state, action) => {
+      // Now expects a filePath string, not a document object
+      const pathToRemove = action.payload;
+      state.recentDocuments = state.recentDocuments.filter(
+        doc => doc.path !== pathToRemove
       );
     },
     clearRecentDocuments: (state) => {
@@ -79,6 +93,8 @@ export const {
   setLoadingStatus,
   setError,
   resetPdfState,
+  loadRecentDocuments,
+  addOrUpdateRecentDocument,
   removeRecentDocument,
   clearRecentDocuments,
 } = pdfSlice.actions;

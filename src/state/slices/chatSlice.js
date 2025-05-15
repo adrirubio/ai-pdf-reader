@@ -12,6 +12,7 @@ const initialState = {
   selectedStyle: 'simple',
   customPrompt: '',
   sessionCount: 1,
+  activeDocumentPath: null, // Track the current active document
 };
 
 export const chatSlice = createSlice({
@@ -23,7 +24,9 @@ export const chatSlice = createSlice({
       const newSession = {
         id: generateId(),
         title: `Chat ${newSessionCount}`,
-        messages: []
+        messages: [],
+        highlightId: null, // Add highlightId for cross-reference
+        createdAt: new Date().toISOString(),
       };
       state.sessions.push(newSession);
       state.currentSessionIndex = state.sessions.length - 1;
@@ -35,7 +38,13 @@ export const chatSlice = createSlice({
     removeSession: (state, action) => {
       // If there's only one session, just clear its messages
       if (state.sessions.length <= 1) {
-        state.sessions = [{ id: generateId(), title: 'Chat 1', messages: [] }];
+        state.sessions = [{ 
+          id: generateId(), 
+          title: 'Chat 1', 
+          messages: [],
+          highlightId: null,
+          createdAt: new Date().toISOString(),
+        }];
         state.currentSessionIndex = 0;
         return;
       }
@@ -92,6 +101,45 @@ export const chatSlice = createSlice({
       const { index, title } = action.payload;
       state.sessions[index].title = title;
     },
+    // New actions for document-specific chats
+    setActiveDocument: (state, action) => {
+      const { filePath, initialSessions } = action.payload;
+      state.activeDocumentPath = filePath;
+      
+      // If sessions are provided, use them; otherwise, initialize with one empty chat
+      if (initialSessions && initialSessions.length > 0) {
+        state.sessions = initialSessions;
+        // Update sessionCount based on the highest chat number
+        state.sessionCount = Math.max(
+          ...initialSessions.map(session => {
+            const match = session.title.match(/Chat (\d+)/);
+            return match ? parseInt(match[1], 10) : 0;
+          }), 
+          0
+        );
+      } else {
+        // Initialize with one empty chat
+        state.sessions = [{ 
+          id: generateId(), 
+          title: 'Chat 1', 
+          messages: [],
+          highlightId: null,
+          createdAt: new Date().toISOString(),
+        }];
+        state.sessionCount = 1;
+      }
+      
+      state.currentSessionIndex = 0;
+    },
+    clearActiveDocument: (state) => {
+      state.activeDocumentPath = null;
+      state.sessions = initialState.sessions;
+      state.currentSessionIndex = 0;
+      state.sessionCount = 1;
+    },
+    setHighlightForCurrentSession: (state, action) => {
+      state.sessions[state.currentSessionIndex].highlightId = action.payload;
+    },
   },
 });
 
@@ -106,6 +154,9 @@ export const {
   setCustomPrompt,
   clearCurrentChat,
   renameSession,
+  setActiveDocument,
+  clearActiveDocument,
+  setHighlightForCurrentSession,
 } = chatSlice.actions;
 
 export default chatSlice.reducer; 
