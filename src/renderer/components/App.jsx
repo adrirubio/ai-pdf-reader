@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useDispatch } from 'react-redux';
+import { setActiveDocument, clearActiveDocument } from '../../state/slices/chatSlice';
+import { addOrUpdateRecentDocument } from '../../state/slices/pdfSlice';
 import LandingPage from './LandingPage';
 import PDFViewer from './PDFViewer';
 import AIPanel from './AIPanel';
@@ -15,6 +18,39 @@ const App = () => {
   const [fullPdfText, setFullPdfText] = useState('');
   const aiPanelRef = useRef(null);
   const pdfViewerRef = useRef(null);
+  const dispatch = useDispatch();
+  
+  // Handle app:before-quit event
+  useEffect(() => {
+    if (window.electronEvents && window.electronEvents.onBeforeQuit) {
+      const removeListener = window.electronEvents.onBeforeQuit(() => {
+        console.log('App is about to quit, saving state...');
+        // Save the current document's chat sessions
+        if (pdfPath && aiPanelRef.current) {
+          try {
+            // getSessions already returns a clean copy
+            const sessions = aiPanelRef.current.getSessions();
+            if (sessions && sessions.length > 0) {
+              window.electron.saveDocumentChats(pdfPath, sessions)
+                .catch(err => console.error('Error saving chat sessions before quit:', err));
+            }
+          } catch (error) {
+            console.error('Error preparing chat sessions for save before quit:', error);
+          }
+        }
+        
+        // Save highlights for the current document
+        if (pdfPath && pdfViewerRef.current) {
+          // This is handled automatically by the PDFViewer component
+          console.log('Highlights will be saved by PDFViewer component');
+        }
+      });
+      
+      return () => {
+        if (removeListener) removeListener();
+      };
+    }
+  }, [pdfPath]);
 
   const handleNewChat = () => {
     setShowAIPanel(true);
@@ -29,12 +65,123 @@ const App = () => {
     setNewChatCount(c => c + 1);
   };
 
-  const handleOpenPDF = async () => {
+  const handleOpenPDF = async (providedPath) => {
     try {
-      const filePath = await window.electron.openFile();
-      if (filePath) {
-        setPdfPath(filePath);
-        setShowLanding(false);
+      console.log('handleOpenPDF called with:', typeof providedPath);
+      
+      // Handle React events that might be passed to this function
+      if (providedPath && typeof providedPath === 'object' && 'preventDefault' in providedPath) {
+        console.log('React event object detected, ignoring it');
+        providedPath = null; // Ignore the event object and use file dialog instead
+      }
+      
+      // Try to log the object for debugging (only if it's not a React event)
+      if (providedPath && typeof providedPath === 'object' && !('preventDefault' in providedPath)) {
+        try {
+          console.log('ProvidedPath object details:', JSON.stringify(providedPath, null, 2));
+        } catch (e) {
+          console.error('Could not stringify providedPath:', e);
+        }
+      }
+      
+      let filePath = providedPath;
+      
+      // If no path was provided or it's an invalid type (not a string), open the file dialog
+      if (!filePath || typeof filePath !== 'string') {
+        // Special case for recent document objects
+        if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+          console.log('Using path from recent document object:', filePath.path);
+          filePath = filePath.path;
+        } else if (filePath && typeof filePath === 'object' && filePath.name && typeof filePath.name === 'string') {
+          console.log('Using name from recent document object:', filePath.name);
+          filePath = filePath.name;
+        } else {
+          console.log('No valid path provided, opening file dialog');
+          filePath = await window.electron.openFile();
+          console.log('File dialog returned:', filePath);
+        }
+      }
+      
+      // Early exit if no filePath was selected
+      if (!filePath) {
+        console.log('No file selected.');
+        return;
+      }
+      
+      // Ensure we have a string path
+      let filePathString = typeof filePath === 'string' ? filePath : '';
+      
+      if (!filePathString) {
+        console.error('Invalid path, cannot open PDF');
+        return;
+      }
+      
+      // To diagnose issues with bad paths, try to check if this is a valid path
+      console.log('Path being used:', filePathString);
+      
+      console.log('Setting pdfPath state to string:', filePathString);
+      setPdfPath(filePathString);
+      setShowLanding(false);
+      
+      console.log('Opening PDF:', filePathString);
+        
+      // Add or update this document in the recent documents list
+      // Handle both Windows and Unix-style paths
+      let fileName = 'Unnamed Document';
+      try {
+        if (filePathString.includes('/')) {
+          fileName = filePathString.split('/').pop();
+        } else if (filePathString.includes('\\')) {
+          fileName = filePathString.split('\\').pop();
+        } else {
+          fileName = filePathString;
+        }
+      } catch (error) {
+        console.error('Error extracting filename:', error);
+      }
+        
+      // Create a simple object with only primitive properties
+      const documentInfo = {
+        path: filePathString,
+        name: fileName,
+        lastAccessed: new Date().toISOString()
+      };
+      
+      // Update Redux store
+      console.log('Dispatching addOrUpdateRecentDocument:', documentInfo);
+      dispatch(addOrUpdateRecentDocument(documentInfo));
+      
+      // Save to persistent storage - always use the string path we've already extracted
+      console.log('Saving to recent documents:', filePathString);
+      
+      try {
+        await window.electron.addRecentDocument(filePathString);
+      } catch (err) {
+        console.error('Error saving recent document:', err);
+      }
+      
+      // Load document-specific chats
+      try {
+        console.log('Loading document chats with path:', filePathString);
+        const documentChats = await window.electron.getDocumentChats(filePathString);
+        
+        // Clean any potentially non-serializable data before dispatching
+        let cleanSessions = [];
+        if (Array.isArray(documentChats) && documentChats.length > 0) {
+          cleanSessions = documentChats;
+          console.log(`Loaded ${cleanSessions.length} chat sessions for document`);
+        }
+        
+        console.log('Dispatching setActiveDocument with path:', filePathString);
+        
+        dispatch(setActiveDocument({
+          filePath: filePathString,
+          initialSessions: cleanSessions.length > 0 ? cleanSessions : undefined
+        }));
+      } catch (error) {
+        console.error('Error loading document chats:', error);
+        // Initialize with empty sessions if there was an error
+        dispatch(setActiveDocument({ filePath: filePathString }));
       }
     } catch (error) {
       console.error('Error opening PDF:', error);
@@ -51,6 +198,20 @@ const App = () => {
   };
 
   const handleBackToLanding = () => {
+    // Save chats for the current document before navigating away
+    if (pdfPath) {
+      const currentSessions = aiPanelRef.current?.getSessions();
+      if (currentSessions) {
+        // The getSessions method now returns a clean copy without circular references
+        window.electron.saveDocumentChats(pdfPath, currentSessions)
+          .catch(err => console.error('Error saving document chats:', err));
+      }
+    }
+    
+    // Clear active document in Redux
+    dispatch(clearActiveDocument());
+    
+    // Reset component state
     setPdfPath(null);
     setSelectedText('');
     setSelectedLocation(null);
@@ -157,7 +318,11 @@ const App = () => {
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14 2 14 8 20 8"></polyline>
               </svg>
-              {pdfPath ? pdfPath.split('/').pop() : 'No file selected'}
+              {pdfPath && typeof pdfPath === 'string' ? 
+                (pdfPath.includes('/') ? pdfPath.split('/').pop() : 
+                 pdfPath.includes('\\') ? pdfPath.split('\\').pop() : 
+                 pdfPath) : 
+                'No file selected'}
             </div>
 
             <div style={{
@@ -216,7 +381,7 @@ const App = () => {
             }}>
               <PDFViewer 
                 ref={pdfViewerRef}
-                filePath={pdfPath} 
+                filePath={typeof pdfPath === 'string' ? pdfPath : (pdfPath && typeof pdfPath === 'object' && pdfPath.path) ? pdfPath.path : String(pdfPath || '')} 
                 onTextSelected={handleTextSelected}
                 onFullTextExtracted={setFullPdfText}
                 pdfContentStyle={{

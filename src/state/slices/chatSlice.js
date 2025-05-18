@@ -5,25 +5,105 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const initialState = {
   sessions: [
-    { id: generateId(), title: 'Chat 1', messages: [] }
+    { id: generateId(), title: 'Chat 1', messages: [], highlightId: null, createdAt: new Date().toISOString() }
   ],
   currentSessionIndex: 0,
   isTyping: false,
   selectedStyle: 'simple',
   customPrompt: '',
   sessionCount: 1,
+  activeDocumentPath: null,
 };
 
 export const chatSlice = createSlice({
   name: 'chat',
   initialState,
   reducers: {
-    addSession: (state) => {
+    setActiveDocument: (state, action) => {
+      try {
+        const { filePath, initialSessions } = action.payload || {};
+        // Ensure filePath is a string
+        state.activeDocumentPath = typeof filePath === 'string' ? filePath : String(filePath || '');
+        
+        // Clear existing sessions and populate with document-specific sessions
+        if (initialSessions && Array.isArray(initialSessions)) {
+          // Create clean copies of each session to avoid circular references
+          const cleanSessions = initialSessions.map(session => ({
+            id: session.id || generateId(),
+            title: session.title || 'Untitled Chat',
+            highlightId: session.highlightId || null,
+            createdAt: session.createdAt || new Date().toISOString(),
+            messages: Array.isArray(session.messages) ? session.messages.map(msg => ({
+              id: msg.id || Date.now(),
+              type: msg.type || 'user',
+              content: msg.content || '',
+              timestamp: msg.timestamp || new Date().toISOString(),
+              isError: !!msg.isError
+            })) : []
+          }));
+          state.sessions = cleanSessions;
+        } else {
+          // If no sessions provided, create a default empty one
+          state.sessions = [{ 
+            id: generateId(), 
+            title: 'Chat 1', 
+            messages: [], 
+            highlightId: null, 
+            createdAt: new Date().toISOString() 
+          }];
+        }
+        state.currentSessionIndex = 0;
+      } catch (error) {
+        console.error('Error in setActiveDocument reducer:', error);
+        // Fallback to a safe state
+        state.activeDocumentPath = '';
+        state.sessions = [{ 
+          id: generateId(), 
+          title: 'Chat 1', 
+          messages: [], 
+          highlightId: null, 
+          createdAt: new Date().toISOString() 
+        }];
+        state.currentSessionIndex = 0;
+      }
+    },
+    
+    clearActiveDocument: (state) => {
+      try {
+        state.activeDocumentPath = null;
+        state.sessions = [{ 
+          id: generateId(), 
+          title: 'Chat 1', 
+          messages: [], 
+          highlightId: null, 
+          createdAt: new Date().toISOString() 
+        }];
+        state.currentSessionIndex = 0;
+        state.sessionCount = 1;
+      } catch (error) {
+        console.error('Error in clearActiveDocument reducer:', error);
+        // Ensure we reset to a known good state
+        state.activeDocumentPath = null;
+        state.sessions = [{ 
+          id: generateId(), 
+          title: 'Chat 1', 
+          messages: [], 
+          highlightId: null, 
+          createdAt: new Date().toISOString() 
+        }];
+        state.currentSessionIndex = 0;
+        state.sessionCount = 1;
+      }
+    },
+    addSession: (state, action) => {
       const newSessionCount = state.sessionCount + 1;
+      const payload = action.payload || {};
       const newSession = {
         id: generateId(),
-        title: `Chat ${newSessionCount}`,
-        messages: []
+        title: payload.title || `Chat ${newSessionCount}`,
+        messages: payload.messages || [],
+        highlightId: payload.highlightId || null,
+        createdAt: new Date().toISOString()
       };
       state.sessions.push(newSession);
       state.currentSessionIndex = state.sessions.length - 1;
@@ -35,7 +115,13 @@ export const chatSlice = createSlice({
     removeSession: (state, action) => {
       // If there's only one session, just clear its messages
       if (state.sessions.length <= 1) {
-        state.sessions = [{ id: generateId(), title: 'Chat 1', messages: [] }];
+        state.sessions = [{ 
+          id: generateId(), 
+          title: 'Chat 1', 
+          messages: [], 
+          highlightId: null, 
+          createdAt: new Date().toISOString() 
+        }];
         state.currentSessionIndex = 0;
         return;
       }
@@ -96,6 +182,8 @@ export const chatSlice = createSlice({
 });
 
 export const {
+  setActiveDocument,
+  clearActiveDocument,
   addSession,
   setCurrentSession,
   removeSession,

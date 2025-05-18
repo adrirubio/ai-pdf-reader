@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 
 // Small UUID helper
 const uuid = () => Math.random().toString(36).substr(2, 9);
@@ -556,7 +557,44 @@ const AIPanel = forwardRef(({
     onClose();
   };
 
-  // Expose switchToEmptyChat to parent via ref
+  // Get active document path from Redux
+  const activeDocumentPath = useSelector(state => state.chat.activeDocumentPath);
+
+  // Save chats when they change
+  useEffect(() => {
+    if (sessions.length > 0 && activeDocumentPath) {
+      const saveChats = async () => {
+        try {
+          // Create a clean copy of the sessions to avoid serialization issues
+          const cleanSessions = sessions.map(session => ({
+            id: session.id,
+            title: session.title,
+            highlightId: session.highlightId,
+            createdAt: session.createdAt,
+            messages: session.messages.map(msg => ({
+              id: msg.id,
+              type: msg.type,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              isError: msg.isError,
+              // Exclude any complex objects that might contain circular references
+              // Only include simple properties that can be serialized
+            }))
+          }));
+          
+          await window.electron.saveDocumentChats(activeDocumentPath, cleanSessions);
+        } catch (error) {
+          console.error('Error saving document chats:', error);
+        }
+      };
+      
+      // Debounce to avoid saving too frequently
+      const timeoutId = setTimeout(saveChats, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [sessions, activeDocumentPath]);
+
+  // Expose switchToEmptyChat and getSessions to parent via ref
   useImperativeHandle(ref, () => ({
     addMessageFromOutside: (text, type = 'ai') => {
       addAIMessageToSession(text, type === 'error');
@@ -564,6 +602,49 @@ const AIPanel = forwardRef(({
     focusInput: () => {
       if (inputRef.current) {
         inputRef.current.focus();
+      }
+    },
+    // Get current sessions for saving - returns a clean copy without circular references
+    getSessions: () => {
+      try {
+        // Create a clean, simple serializable version of sessions
+        return sessions.map(session => {
+          // Extract only the necessary properties from session
+          const cleanSession = {
+            id: session.id || uuid(),
+            title: typeof session.title === 'string' ? session.title : 'Untitled Chat',
+            highlightId: session.highlightId || null,
+            createdAt: session.createdAt || new Date().toISOString()
+          };
+          
+          // Handle messages safely
+          if (Array.isArray(session.messages)) {
+            cleanSession.messages = session.messages.map(msg => {
+              // Extract only necessary properties from each message
+              return {
+                id: msg.id || uuid(),
+                type: typeof msg.type === 'string' ? msg.type : 'user',
+                content: typeof msg.content === 'string' ? msg.content : String(msg.content || ''),
+                timestamp: msg.timestamp || new Date().toISOString(),
+                isError: !!msg.isError
+              };
+            });
+          } else {
+            cleanSession.messages = [];
+          }
+          
+          return cleanSession;
+        });
+      } catch (error) {
+        console.error('Error in getSessions:', error);
+        // Return a safe fallback
+        return [{ 
+          id: uuid(), 
+          title: 'Chat 1', 
+          messages: [], 
+          highlightId: null, 
+          createdAt: new Date().toISOString() 
+        }];
       }
     },
     // CORRECTED switchToEmptyChat - this is called by App.jsx for the TOP RIGHT new chat button

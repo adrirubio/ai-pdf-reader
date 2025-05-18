@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 
 const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, onFullTextExtracted }, ref) => {
+  // Input validation - ensure filePath is a string
+  const validFilePath = filePath && typeof filePath === 'string' ? filePath : '';
+  if (!validFilePath && filePath) {
+    console.error('PDFViewer received invalid filePath type:', typeof filePath);
+  }
   const [pdfDocument, setPdfDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -21,30 +26,100 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
   const tooltipRef = useRef(null);
   const selectedTextRef = useRef('');
 
-  // Load highlights from session storage on component mount
+  // Load highlights from persistent storage when filePath changes
   useEffect(() => {
-    try {
-      const storedHighlights = sessionStorage.getItem('pdfPersistentHighlights');
-      if (storedHighlights) {
-        setPersistentHighlights(JSON.parse(storedHighlights));
+    // Use validFilePath from component props validation
+    if (!validFilePath) {
+      console.log('No valid filePath for loading highlights');
+      return;
+    }
+    
+    const filePathString = validFilePath;
+    
+    const loadHighlights = async () => {
+      try {
+        // Use the electron API to get document highlights with the string path
+        const storedHighlights = await window.electron.getDocumentHighlights(filePathString);
+        if (storedHighlights && Array.isArray(storedHighlights) && storedHighlights.length > 0) {
+          console.log(`Loaded ${storedHighlights.length} highlights for ${filePath}`);
+          
+          // Create clean, simple highlight objects
+          const cleanHighlights = storedHighlights.map(highlight => ({
+            id: highlight.id,
+            pageNumber: typeof highlight.pageNumber === 'number' ? highlight.pageNumber : Number(highlight.pageNumber),
+            text: typeof highlight.text === 'string' ? highlight.text : String(highlight.text),
+            rectsOnPage: Array.isArray(highlight.rectsOnPage) ? highlight.rectsOnPage.map(rect => ({
+              top: typeof rect.top === 'number' ? rect.top : Number(rect.top),
+              left: typeof rect.left === 'number' ? rect.left : Number(rect.left),
+              width: typeof rect.width === 'number' ? rect.width : Number(rect.width),
+              height: typeof rect.height === 'number' ? rect.height : Number(rect.height)
+            })) : []
+          }));
+          
+          setPersistentHighlights(cleanHighlights);
+        } else {
+          console.log(`No stored highlights found for ${filePath}`);
+          setPersistentHighlights([]);
+        }
+      } catch (e) {
+        console.error("Failed to load highlights from persistent storage", e);
+        setPersistentHighlights([]);
       }
-    } catch (e) {
-      console.error("Failed to load highlights from session storage", e);
-    }
-  }, []);
+    };
+    
+    loadHighlights();
+  }, [validFilePath]);
 
-  // Save highlights to session storage whenever they change
+  // Save highlights to persistent storage whenever they change
   useEffect(() => {
-    try {
-      sessionStorage.setItem('pdfPersistentHighlights', JSON.stringify(persistentHighlights));
-    } catch (e) {
-      console.error("Failed to save highlights to session storage", e);
+    // Use validFilePath from component props validation
+    if (!validFilePath || persistentHighlights.length === 0) {
+      return;
     }
-  }, [persistentHighlights]);
+    
+    const filePathString = validFilePath;
+    
+    const saveHighlights = async () => {
+      try {
+        // Create a clean copy of highlights to avoid serialization issues
+        const cleanHighlights = persistentHighlights.map(highlight => ({
+          id: highlight.id,
+          pageNumber: highlight.pageNumber,
+          text: highlight.text,
+          rectsOnPage: highlight.rectsOnPage.map(rect => ({
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height
+          }))
+        }));
+        
+        // Use the electron API to save document highlights with the string path
+        await window.electron.saveDocumentHighlights(filePathString, cleanHighlights);
+        console.log(`Saved ${cleanHighlights.length} highlights for ${filePathString}`);
+      } catch (e) {
+        console.error("Failed to save highlights to persistent storage", e);
+      }
+    };
+    
+    // Debounce save to avoid excessive writes
+    const timeoutId = setTimeout(saveHighlights, 500);
+    return () => clearTimeout(timeoutId);
+  }, [persistentHighlights, validFilePath]);
 
   // Load PDF document when filePath changes
   useEffect(() => {
-    if (!filePath) return;
+    // Use validFilePath from component props validation
+    if (!validFilePath) {
+      console.log('No valid filePath for loading PDF document');
+      return;
+    }
+    
+    // Use the validated path string
+    const filePathString = validFilePath;
+    
+    // Log for debugging
+    console.log('Loading PDF document with path:', filePathString);
     
     const loadPdf = async () => {
       setLoading(true);
@@ -56,7 +131,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
       }
       
       try {
-        console.log('Loading PDF from:', filePath);
+        console.log('Loading PDF from:', filePathString);
         
         // Check that PDF.js is loaded
         const pdfjsLib = window.pdfjsLib;
@@ -66,50 +141,71 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
         
         // Read file via preload bridge
         setLoadingStatus('Reading PDF file...');
-        console.log('Calling electron.readPdfFile...');
-        const base64Data = await window.electron.readPdfFile(filePath);
+        
+        // Make sure filePathString is really a string at this point
+        if (typeof filePathString !== 'string') {
+          if (filePathString && typeof filePathString === 'object' && filePathString.path) {
+            console.log('Using path property from object in PDFViewer loadPdf:', filePathString.path);
+            filePathString = filePathString.path;
+          } else {
+            console.warn('Converting non-string filePathString to string in PDFViewer loadPdf:', typeof filePathString);
+            filePathString = String(filePathString || '');
+          }
+        }
+        
+        console.log('Calling electron.readPdfFile with clean string path:', filePathString);
+        const base64Data = await window.electron.readPdfFile(filePathString);
         
         if (!base64Data) {
           throw new Error('Could not read PDF file');
         }
         
+        if (typeof base64Data !== 'string') {
+          throw new Error(`Invalid data format: ${typeof base64Data}`);
+        }
+        
         console.log('PDF data loaded, length:', base64Data.length);
         setLoadingStatus('Processing PDF data...');
         
-        // Convert base64 to binary data
-        const binaryData = atob(base64Data);
-        const len = binaryData.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryData.charCodeAt(i);
-        }
-        
-        // Load PDF from binary data
-        setLoadingStatus('Loading PDF into viewer...');
-        const loadingTask = pdfjsLib.getDocument({ data: bytes });
-        
-        const document = await loadingTask.promise;
-        console.log('PDF loaded successfully, pages:', document.numPages);
-        
-        setPdfDocument(document);
-        setTotalPages(document.numPages);
-        setCurrentPage(1);
-        setLoadingStatus('');
-
-        // Extract full text
-        if (onFullTextExtracted) {
-          setLoadingStatus('Extracting text...');
-          let fullText = '';
-          for (let i = 1; i <= document.numPages; i++) {
-            const page = await document.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            fullText += pageText + '\n\n'; // Add double newline between pages
-            setLoadingStatus(`Extracted text from page ${i}/${document.numPages}`);
+        try {
+          // Convert base64 to binary data
+          const binaryData = atob(base64Data);
+          const len = binaryData.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryData.charCodeAt(i);
           }
-          onFullTextExtracted(fullText.trim());
-          console.log('Full text extracted.');
+          
+          // Load PDF from binary data
+          setLoadingStatus('Loading PDF into viewer...');
+          const loadingTask = pdfjsLib.getDocument({ data: bytes });
+          
+          const document = await loadingTask.promise;
+          console.log('PDF loaded successfully, pages:', document.numPages);
+          
+          setPdfDocument(document);
+          setTotalPages(document.numPages);
+          setCurrentPage(1);
           setLoadingStatus('');
+
+          // Extract full text
+          if (onFullTextExtracted) {
+            setLoadingStatus('Extracting text...');
+            let fullText = '';
+            for (let i = 1; i <= document.numPages; i++) {
+              const page = await document.getPage(i);
+              const textContent = await page.getTextContent();
+              const pageText = textContent.items.map(item => item.str).join(' ');
+              fullText += pageText + '\n\n'; // Add double newline between pages
+              setLoadingStatus(`Extracted text from page ${i}/${document.numPages}`);
+            }
+            onFullTextExtracted(fullText.trim());
+            console.log('Full text extracted.');
+            setLoadingStatus('');
+          }
+        } catch (dataError) {
+          console.error('Error processing PDF data:', dataError);
+          throw new Error(`Failed to process PDF data: ${dataError.message}`);
         }
 
       } catch (error) {
@@ -122,7 +218,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     };
 
     loadPdf();
-  }, [filePath, onFullTextExtracted]);
+  }, [validFilePath, onFullTextExtracted]);
 
   // Render current page when it changes
   useEffect(() => {

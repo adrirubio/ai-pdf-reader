@@ -1,12 +1,30 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { setPdfPath, loadRecentDocuments } from '../../state/slices/pdfSlice';
 
 const LandingPage = ({ onOpenPDF }) => {
   const [animateIn, setAnimateIn] = useState(false);
+  const recentDocuments = useSelector(state => state.pdf.recentDocuments);
+  const dispatch = useDispatch();
   
   // Animation effect when component mounts
   useEffect(() => {
     setTimeout(() => setAnimateIn(true), 100);
   }, []);
+  
+  // Load recent documents on component mount
+  useEffect(() => {
+    const loadRecents = async () => {
+      try {
+        const recents = await window.electron.getRecentDocuments();
+        dispatch(loadRecentDocuments(recents));
+      } catch (error) {
+        console.error('Error loading recent documents:', error);
+      }
+    };
+    
+    loadRecents();
+  }, [dispatch]);
 
   return (
     <div style={{ 
@@ -239,7 +257,10 @@ const LandingPage = ({ onOpenPDF }) => {
           transitionDelay: '0.5s',
         }}>
           <button 
-            onClick={onOpenPDF}
+            onClick={(e) => {
+              e.preventDefault(); // Prevent the event from being passed
+              onOpenPDF(); // Call without arguments to use the file dialog
+            }}
             style={{
               background: 'white',
               color: '#203a43',
@@ -279,6 +300,142 @@ const LandingPage = ({ onOpenPDF }) => {
             </span>
           </button>
         </div>
+        
+        {/* Recent Documents Section */}
+        {recentDocuments.length > 0 && (
+          <div style={{
+            marginTop: '40px',
+            width: '100%',
+            transform: animateIn ? 'translateY(0)' : 'translateY(20px)',
+            opacity: animateIn ? 1 : 0,
+            transition: 'all 0.6s ease-out',
+            transitionDelay: '0.4s',
+          }}>
+            <h2 style={{
+              fontSize: '1.5rem',
+              color: 'white',
+              marginBottom: '20px',
+              textAlign: 'left',
+              fontWeight: '600',
+            }}>
+              Recent Documents
+            </h2>
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+              gap: '15px',
+              width: '100%',
+            }}>
+              {recentDocuments.map((doc, index) => (
+                <div 
+                  key={doc.path}
+                  onClick={(e) => {
+                    e.preventDefault(); // Prevent event propagation
+                    e.stopPropagation();
+                    
+                    // Handle opening a recent document - ensure we have valid data
+                    console.log('Recent document clicked:', doc);
+                    
+                    let pathToUse;
+                    
+                    // First try to use the full path if it's a string
+                    if (doc.path && typeof doc.path === 'string' && doc.path.trim() !== '') {
+                      console.log('Using path from recent document:', doc.path);
+                      pathToUse = doc.path;
+                    } 
+                    // If we don't have a valid path, fall back to name
+                    else if (doc.name && typeof doc.name === 'string' && doc.name.trim() !== '') {
+                      console.log('Using name as path:', doc.name);
+                      pathToUse = doc.name;
+                    }
+                    // If we don't have either, use file dialog
+                    else {
+                      console.log('No valid path or name found, opening dialog');
+                      pathToUse = null; // Will cause file dialog to open
+                    }
+                    
+                    if (pathToUse) {
+                      console.log('Opening document with path:', pathToUse);
+                      dispatch(setPdfPath(pathToUse));
+                    }
+                    
+                    // Always pass a clean value (string or null)
+                    onOpenPDF(pathToUse);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    borderRadius: '10px',
+                    padding: '15px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    transform: animateIn ? 'translateY(0)' : 'translateY(20px)',
+                    opacity: animateIn ? 1 : 0,
+                    transitionDelay: `${0.4 + (index * 0.05)}s`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+                  }}
+                >
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                  </div>
+                  
+                  <div style={{
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    flex: 1,
+                  }}>
+                    <div style={{
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      color: 'white',
+                      marginBottom: '4px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {typeof doc.name === 'string' ? doc.name : 'Unnamed Document'}
+                    </div>
+                    <div style={{
+                      fontSize: '0.8rem',
+                      color: 'rgba(255, 255, 255, 0.6)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {doc.lastAccessed ? new Date(doc.lastAccessed).toLocaleString() : 'Unknown date'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         {/* Version info */}
         <div style={{ 
