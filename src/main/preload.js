@@ -111,6 +111,22 @@ contextBridge.exposeInMainWorld('electron', {
       return Promise.resolve(false);
     }
   },
+  removeRecentDocument: (filePath) => {
+    try {
+      // Ensure we're sending a string path
+      if (typeof filePath !== 'string') {
+        if (filePath && typeof filePath === 'object' && filePath.path) {
+          filePath = filePath.path;
+        } else {
+          filePath = String(filePath);
+        }
+      }
+      return ipcRenderer.invoke('recentDocuments:remove', filePath);
+    } catch (error) {
+      console.error('Error in removeRecentDocument:', error);
+      return Promise.resolve(false);
+    }
+  },
   
   // Methods for document-specific data
   getDocumentChats: (filePath) => {

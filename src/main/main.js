@@ -325,15 +325,16 @@ function setupHandlers() {
   
   // Add handlers for recent documents and document-specific data
   ipcMain.handle('recentDocuments:get', async () => {
-    return store.get('recentDocuments', []);
+    return getRecentDocuments();
   });
   
   ipcMain.handle('recentDocuments:add', async (event, filePath) => {
-    if (!filePath) {
-      console.error('recentDocuments:add called without valid filePath');
-      return false;
-    }
     addRecentDocument(filePath);
+    return true;
+  });
+  
+  ipcMain.handle('recentDocuments:remove', async (event, filePath) => {
+    removeRecentDocument(filePath);
     return true;
   });
   
@@ -628,6 +629,69 @@ function addRecentDocument(filePath) {
 
 function getRecentDocuments() {
   return store.get('recentDocuments', []);
+}
+
+function removeRecentDocument(filePath) {
+  if (!filePath) return false;
+  
+  try {
+    // Ensure filePath is a string
+    let filePathString;
+    if (typeof filePath === 'string') {
+      filePathString = filePath;
+    } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+      console.log("Converting object to path string in removeRecentDocument:", filePath.path);
+      filePathString = filePath.path;
+    } else {
+      console.error('Invalid filePath type in removeRecentDocument:', typeof filePath);
+      // Try to convert to string as a last resort
+      try {
+        filePathString = String(filePath);
+        console.log("Converted filePath to string:", filePathString);
+      } catch (e) {
+        console.error("Failed to convert filePath to string:", e);
+        return false;
+      }
+    }
+    
+    // Validate that filePath is non-empty string
+    if (!filePathString || filePathString.trim() === '') {
+      console.error('Empty filePath in removeRecentDocument');
+      return false;
+    }
+    
+    // Get current list of recent documents
+    let recentDocs = store.get('recentDocuments', []);
+    
+    // Ensure recentDocs is an array
+    if (!Array.isArray(recentDocs)) {
+      console.warn('recentDocuments was not an array, nothing to remove');
+      return false;
+    }
+    
+    // Filter out the document with the matching path
+    const updatedDocs = recentDocs.filter(doc => 
+      !(doc && typeof doc === 'object' && doc.path === filePathString)
+    );
+    
+    // If the length hasn't changed, we didn't find the document
+    if (updatedDocs.length === recentDocs.length) {
+      console.log(`Document with path ${filePathString} not found in recent documents`);
+      return false;
+    }
+    
+    // Save the updated list
+    store.set('recentDocuments', updatedDocs);
+    console.log(`Removed document with path ${filePathString} from recent documents list. Remaining: ${updatedDocs.length}`);
+    
+    // Also remove any document-specific data
+    removeDocumentData(filePathString);
+    
+    return true;
+  } catch (error) {
+    console.error('Error in removeRecentDocument:', error);
+    return false;
+  }
 }
 
 function getDocumentChats(filePath) {
