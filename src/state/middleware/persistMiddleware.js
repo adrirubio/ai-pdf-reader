@@ -36,21 +36,9 @@ const debounce = (func, wait) => {
 
 // Create debounced save functions
 const debouncedSaveRecentDocuments = debounce((electron, documents) => {
-  if (electron && documents) {
-    electron.getRecentDocuments()
-      .then(currentDocuments => {
-        // Only save if different to avoid unnecessary writes
-        const currentJson = JSON.stringify(currentDocuments);
-        const newJson = JSON.stringify(documents);
-        if (currentJson !== newJson) {
-          console.log('Saving recent documents to electron-store');
-          // In a real implementation, this would make an IPC call to save the documents
-          // to the main process via electron-store
-          // Here we're just logging for now
-        }
-      })
-      .catch(err => console.error('Error in debouncedSaveRecentDocuments:', err));
-  }
+  // Recent documents are already saved directly in main.js when added/removed
+  // This is kept for consistency but may not be needed
+  console.log('Recent documents are persisted directly in main process');
 }, 500);
 
 const debouncedSaveDocumentChats = debounce((electron, filePath, sessions) => {

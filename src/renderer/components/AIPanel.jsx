@@ -16,10 +16,17 @@ const AIPanel = forwardRef(({
   onRemoveHighlight,
   fullPdfText
 }, ref) => {
-  // multiple chat sessions
-  const [sessions, setSessions] = useState([
-    { id: uuid(), title: 'Chat 1', messages: [], highlightId: null }
-  ]);
+  // Get Redux state for initial sessions
+  const reduxSessions = useSelector(state => state.chat.sessions);
+  
+  // multiple chat sessions - initialize from Redux if available
+  const [sessions, setSessions] = useState(() => {
+    if (reduxSessions && reduxSessions.length > 0) {
+      // Create a deep copy to avoid modifying frozen Redux state
+      return JSON.parse(JSON.stringify(reduxSessions));
+    }
+    return [{ id: uuid(), title: 'Chat 1', messages: [], highlightId: null }];
+  });
   const [currentIdx, setCurrentIdx] = useState(0);
   const [showStyleChooser, setShowStyleChooser] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
@@ -38,6 +45,18 @@ const AIPanel = forwardRef(({
 
   // Ref to track the active stream ID for CHAT
   const activeChatStreamIdRef = useRef(null);
+  
+  // Get the active document path from Redux
+  const activeDocumentPath = useSelector(state => state.chat.activeDocumentPath);
+  
+  // Sync with Redux sessions when they change (e.g., when switching documents)
+  useEffect(() => {
+    if (reduxSessions && reduxSessions.length > 0) {
+      // Create a deep copy to avoid modifying frozen Redux state
+      setSessions(JSON.parse(JSON.stringify(reduxSessions)));
+      setCurrentIdx(0); // Reset to first session
+    }
+  }, [reduxSessions]);
 
   // --- Callbacks for EXPLAIN stream ---
   const handleExplainChunk = useCallback((chunk) => {
@@ -224,6 +243,39 @@ const AIPanel = forwardRef(({
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [sessions]);
+  
+  // Save sessions when they change (debounced to avoid too many saves)
+  useEffect(() => {
+    if (!activeDocumentPath) return;
+    
+    // Debounce the save operation
+    const timeoutId = setTimeout(() => {
+      // Create clean sessions directly here
+      try {
+        const cleanSessions = sessions.map(session => ({
+          id: session.id || uuid(),
+          title: typeof session.title === 'string' ? session.title : 'Untitled Chat',
+          highlightId: session.highlightId || null,
+          createdAt: session.createdAt || new Date().toISOString(),
+          messages: Array.isArray(session.messages) ? session.messages.map(msg => ({
+            id: msg.id || uuid(),
+            type: typeof msg.type === 'string' ? msg.type : 'user',
+            content: typeof msg.content === 'string' ? msg.content : String(msg.content || ''),
+            timestamp: msg.timestamp || new Date().toISOString(),
+            isError: !!msg.isError
+          })) : []
+        }));
+        
+        // Save to persistent storage
+        window.electron.saveDocumentChats(activeDocumentPath, cleanSessions)
+          .catch(err => console.error('Error auto-saving document chats:', err));
+      } catch (error) {
+        console.error('Error preparing sessions for auto-save:', error);
+      }
+    }, 1000); // Wait 1 second after last change
+    
+    return () => clearTimeout(timeoutId);
+  }, [sessions, activeDocumentPath]);
 
   // Focus on input based on mode (custom prompt or follow-up)
   useEffect(() => {
@@ -556,9 +608,6 @@ const AIPanel = forwardRef(({
     }
     onClose();
   };
-
-  // Get active document path from Redux
-  const activeDocumentPath = useSelector(state => state.chat.activeDocumentPath);
 
   // Save chats when they change
   useEffect(() => {

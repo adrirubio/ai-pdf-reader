@@ -218,6 +218,40 @@ contextBridge.exposeInMainWorld('electron', {
       return Promise.resolve([]);
     }
   },
+  getLastViewedPage: (filePath) => {
+    try {
+      let pathString;
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      return ipcRenderer.invoke('document:getLastViewedPage', pathString);
+    } catch (error) {
+      console.error('Error in getLastViewedPage:', error);
+      return Promise.resolve(1);
+    }
+  },
+  saveLastViewedPage: (filePath, pageNumber) => {
+    try {
+      let pathString;
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      return ipcRenderer.invoke('document:saveLastViewedPage', pathString, pageNumber);
+    } catch (error) {
+      console.error('Error in saveLastViewedPage:', error);
+      return Promise.resolve(false);
+    }
+  },
   saveDocumentHighlights: (filePath, highlights) => {
     try {
       console.log('preload.js saveDocumentHighlights called with:', typeof filePath);

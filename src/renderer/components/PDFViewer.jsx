@@ -8,6 +8,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
   }
   const [pdfDocument, setPdfDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [initialPageLoaded, setInitialPageLoaded] = useState(false);
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1.5);
   const [loading, setLoading] = useState(false);
@@ -45,7 +46,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
           
           // Create clean, simple highlight objects
           const cleanHighlights = storedHighlights.map(highlight => ({
-            id: highlight.id,
+            id: String(highlight.id), // Ensure ID is a string
             pageNumber: typeof highlight.pageNumber === 'number' ? highlight.pageNumber : Number(highlight.pageNumber),
             text: typeof highlight.text === 'string' ? highlight.text : String(highlight.text),
             rectsOnPage: Array.isArray(highlight.rectsOnPage) ? highlight.rectsOnPage.map(rect => ({
@@ -83,7 +84,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
       try {
         // Create a clean copy of highlights to avoid serialization issues
         const cleanHighlights = persistentHighlights.map(highlight => ({
-          id: highlight.id,
+          id: String(highlight.id), // Ensure ID is a string
           pageNumber: highlight.pageNumber,
           text: highlight.text,
           rectsOnPage: highlight.rectsOnPage.map(rect => ({
@@ -109,6 +110,9 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
 
   // Load PDF document when filePath changes
   useEffect(() => {
+    // Reset initial page loaded flag when file changes
+    setInitialPageLoaded(false);
+    
     // Use validFilePath from component props validation
     if (!validFilePath) {
       console.log('No valid filePath for loading PDF document');
@@ -185,7 +189,26 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
           
           setPdfDocument(document);
           setTotalPages(document.numPages);
-          setCurrentPage(1);
+          
+          // Load last viewed page if not already loaded
+          if (!initialPageLoaded && validFilePath) {
+            try {
+              const lastPage = await window.electron.getLastViewedPage(validFilePath);
+              if (lastPage && lastPage > 1 && lastPage <= document.numPages) {
+                setCurrentPage(lastPage);
+                console.log(`Restored last viewed page: ${lastPage}`);
+              } else {
+                setCurrentPage(1);
+              }
+            } catch (e) {
+              console.error('Failed to load last viewed page:', e);
+              setCurrentPage(1);
+            }
+            setInitialPageLoaded(true);
+          } else {
+            setCurrentPage(1);
+          }
+          
           setLoadingStatus('');
 
           // Extract full text
@@ -219,6 +242,23 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
 
     loadPdf();
   }, [validFilePath, onFullTextExtracted]);
+
+  // Save current page when it changes
+  useEffect(() => {
+    if (!validFilePath || currentPage === 1 || !initialPageLoaded) return;
+    
+    const savePageNumber = async () => {
+      try {
+        await window.electron.saveLastViewedPage(validFilePath, currentPage);
+      } catch (e) {
+        console.error('Failed to save last viewed page:', e);
+      }
+    };
+    
+    // Debounce save to avoid excessive writes
+    const timeoutId = setTimeout(savePageNumber, 500);
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, validFilePath, initialPageLoaded]);
 
   // Render current page when it changes
   useEffect(() => {
@@ -456,7 +496,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
           height: rect.height / scale,
         }));
         const newHighlight = {
-          id: Date.now(),
+          id: Date.now().toString(), // Convert to string to match schema
           pageNumber: currentPage,
           text: text, // Store the actual text for potential future use
           rectsOnPage: rectsOnPage,

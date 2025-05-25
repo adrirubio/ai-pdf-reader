@@ -107,7 +107,8 @@ async function initializeStore() {
                     rectsOnPage: { type: 'array' }
                   }
                 }
-              }
+              },
+              lastViewedPage: { type: 'number', default: 1 }
             }
           }
         }
@@ -123,6 +124,7 @@ async function initializeStore() {
 app.whenReady().then(async () => {
   // Initialize store first
   await initializeStore();
+  
   
   // Then create window and setup handlers
   createWindow();
@@ -481,6 +483,62 @@ function setupHandlers() {
     }
   });
   
+  ipcMain.handle('document:getLastViewedPage', async (event, filePath) => {
+    try {
+      let pathString;
+      
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      if (!pathString || pathString.trim() === '') {
+        return 1;
+      }
+      
+      // Sanitize path for use as object key
+      const sanitizedPath = pathString.replace(/[.]/g, '_');
+      
+      // Get the last viewed page for this document
+      const docData = store.get(`documentSpecificData.${sanitizedPath}`, {});
+      return docData.lastViewedPage || 1;
+    } catch (error) {
+      console.error('Error in document:getLastViewedPage:', error);
+      return 1;
+    }
+  });
+  
+  ipcMain.handle('document:saveLastViewedPage', async (event, filePath, pageNumber) => {
+    try {
+      let pathString;
+      
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      if (!pathString || pathString.trim() === '') {
+        return false;
+      }
+      
+      // Sanitize path for use as object key
+      const sanitizedPath = pathString.replace(/[.]/g, '_');
+      
+      // Save the last viewed page
+      store.set(`documentSpecificData.${sanitizedPath}.lastViewedPage`, pageNumber);
+      return true;
+    } catch (error) {
+      console.error('Error in document:saveLastViewedPage:', error);
+      return false;
+    }
+  });
+  
   ipcMain.handle('documentHighlights:save', async (event, filePath, highlights) => {
     try {
       console.log("documentHighlights:save called with filepath type:", typeof filePath);
@@ -696,25 +754,32 @@ function removeRecentDocument(filePath) {
 
 function getDocumentChats(filePath) {
   if (!filePath) return [];
-  const docData = store.get(`documentSpecificData.${filePath}`, { chatSessions: [] });
-  return docData.chatSessions;
+  // Sanitize path for use as object key (same as in IPC handlers)
+  const sanitizedPath = filePath.replace(/[.]/g, '_');
+  const docData = store.get(`documentSpecificData.${sanitizedPath}`, { chatSessions: [] });
+  return docData.chatSessions || [];
 }
 
 function saveDocumentChats(filePath, sessions) {
   if (!filePath) return false;
-  store.set(`documentSpecificData.${filePath}.chatSessions`, sessions);
+  // Sanitize path for use as object key (same as in IPC handlers)
+  const sanitizedPath = filePath.replace(/[.]/g, '_');
+  store.set(`documentSpecificData.${sanitizedPath}.chatSessions`, sessions);
   return true;
 }
 
 function removeDocumentData(filePath) {
   if (!filePath) return false;
   
+  // Sanitize path for use as object key (same as in IPC handlers)
+  const sanitizedPath = filePath.replace(/[.]/g, '_');
+  
   // Get current document-specific data
   const docData = store.get('documentSpecificData', {});
   
   // Delete this document's data
-  if (docData[filePath]) {
-    delete docData[filePath];
+  if (docData[sanitizedPath]) {
+    delete docData[sanitizedPath];
     store.set('documentSpecificData', docData);
     console.log(`Removed data for ${filePath}`);
     return true;
