@@ -6,23 +6,28 @@ An AI-enhanced PDF reader that explains highlighted text. Built with Electron an
 
 - **PDF Viewing & Navigation**
   - Open and display PDF documents
-  - Navigate between pages with intuitive controls
+  - Navigate between pages with intuitive controls and keyboard shortcuts
+  - Direct page navigation with input field for quick jumps
   - Adjust zoom level for comfortable reading
   - Track and access recently opened documents
+  - Remove documents from recent list with delete button
 
 - **AI-Powered Text Analysis**
   - Highlight text to get instant AI explanations
   - Custom instruction input for personalized explanations
+  - Built-in API key configuration for seamless setup
 
 - **Advanced Chat Interface**
   - Ask follow-up questions about highlighted content
   - Multiple chat sessions for different sections of the document
   - Persistent chat history between application sessions
+  - Last active chat tab remembered per document
   - Stream responses in real-time for better user experience
 
 - **Highlighting & Annotation**
   - Create and save text highlights across the document
   - Highlights persist between reading sessions
+  - Improved highlight removal and management
   - Quick navigation to highlighted sections
 
 - **Cross-Platform Compatibility**
