@@ -724,7 +724,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     }
   }));
 
-  // Keyboard navigation
+  // Keyboard navigation - attach to document to ensure it always works
   useEffect(() => {
     const handleKeyDown = (event) => {
       // Only handle keys when not typing in an input field
@@ -734,6 +734,11 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
 
       // Only handle navigation if we have a PDF loaded - use refs for current values
       if (!pdfDocumentRef.current || totalPagesRef.current === 0) {
+        return;
+      }
+
+      // Only handle navigation if the PDF viewer is focused or visible
+      if (!pdfContentRef.current || !document.contains(pdfContentRef.current)) {
         return;
       }
 
@@ -759,22 +764,25 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
       }
     };
 
-    // Add event listener to the PDF content container
-    const pdfElement = pdfContentRef.current;
-    if (pdfElement) {
-      pdfElement.addEventListener('keydown', handleKeyDown);
-      // Auto-focus the PDF container when PDF loads
-      if (pdfDocumentRef.current) {
-        pdfElement.focus();
-      }
-    }
+    // Add event listener to document instead of specific element
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      if (pdfElement) {
-        pdfElement.removeEventListener('keydown', handleKeyDown);
-      }
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [pdfDocument]); // Re-run when PDF document changes to auto-focus
+  }, []); // Empty dependency array - only run once on mount
+
+  // Separate effect for auto-focusing the PDF container when PDF loads
+  useEffect(() => {
+    if (pdfDocument && pdfContentRef.current) {
+      // Auto-focus the PDF content container for keyboard navigation
+      setTimeout(() => {
+        if (pdfContentRef.current) {
+          pdfContentRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [pdfDocument]);
 
   // Effect to clear active highlight when component unmounts or relevant dependencies change
   useEffect(() => {

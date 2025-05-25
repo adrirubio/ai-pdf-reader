@@ -29,16 +29,38 @@ class AIConfigError extends Error {
   }
 }
 
-// --- API Key Retrieval ---
+// --- API Key Management ---
+let storedApiKey = null;
+
 const getApiKey = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+  // Use stored API key first, then fallback to environment variable
+  const apiKey = storedApiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.warn('API Key not found in environment variables.'); // Changed to warn for fallback testing
-    // For actual operation, you might still want to throw an error if no key means no service.
-    // throw new AIConfigError('API key is not configured. Set OPENAI_API_KEY environment variable.');
-    return null; // Allow fallback to be triggered if API key is missing
+    console.warn('API Key not found in stored configuration or environment variables.');
+    return null;
   }
   return apiKey;
+};
+
+const updateApiKey = (newApiKey) => {
+  storedApiKey = newApiKey;
+  console.log('Updated stored API key');
+  
+  // Reinitialize OpenAI client with new key
+  try {
+    if (newApiKey && newApiKey.trim()) {
+      openai = new OpenAI({
+        apiKey: newApiKey,
+      });
+      console.log('OpenAI client reinitialized with new API key');
+    } else {
+      openai = null;
+      console.warn('OpenAI client set to null due to empty API key');
+    }
+  } catch (error) {
+    console.error('Failed to reinitialize OpenAI client with new API key:', error.message);
+    openai = null;
+  }
 };
 
 const callAiApi = async (promptOrMessages, modelConfig, isChat = false, streamCallback = null) => {
@@ -155,12 +177,15 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 let openai;
 try {
-    if (!process.env.OPENAI_API_KEY) {
-        console.warn('OPENAI_API_KEY environment variable not found at initial load. AI service might not connect to OpenAI.');
+    const initialApiKey = getApiKey();
+    if (!initialApiKey) {
+        console.warn('API Key not found at initial load. AI service will require API key configuration.');
+        openai = null;
+    } else {
+        openai = new OpenAI({
+            apiKey: initialApiKey,
+        });
     }
-    openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-    });
 } catch (error) {
     console.error("Failed to initialize OpenAI client during initial load:", error.message);
     openai = null;
@@ -174,8 +199,8 @@ async function explainTextAndStream(text, style, streamId, streamChunkCallback) 
         return;
     }
 
-    if (!openai || !process.env.OPENAI_API_KEY) {
-        const errorMsg = !openai ? 'OpenAI client not initialized (check API key at startup).' : 'OpenAI API Key not configured for explanation.';
+    if (!openai || !getApiKey()) {
+        const errorMsg = !openai ? 'OpenAI client not initialized (check API key configuration).' : 'OpenAI API Key not configured for explanation.';
         console.warn(`aiService.explainTextAndStream: ${errorMsg}`);
         streamChunkCallback({ streamId, type: 'error', content: errorMsg });
         return;
@@ -248,8 +273,8 @@ async function startChatStream(messages, streamId, streamChunkCallback) {
         return;
     }
 
-    if (!openai || !process.env.OPENAI_API_KEY) {
-        const errorMsg = !openai ? 'OpenAI client not initialized (check API key at startup).' : 'OpenAI API Key not configured for chat.';
+    if (!openai || !getApiKey()) {
+        const errorMsg = !openai ? 'OpenAI client not initialized (check API key configuration).' : 'OpenAI API Key not configured for chat.';
         console.warn(`aiService.startChatStream: ${errorMsg}`);
         streamChunkCallback({ streamId, type: 'error', content: errorMsg });
         return;
@@ -359,5 +384,6 @@ const aiService = {
 
 module.exports = {
     explainTextAndStream,
-    startChatStream
+    startChatStream,
+    updateApiKey
 };

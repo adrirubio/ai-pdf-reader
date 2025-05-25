@@ -6,6 +6,7 @@ const initialState = {
     defaultScale: 1.5, // Default zoom level
     fontSizePDF: 'medium', // small, medium, large
     aiResponseStyle: 'conversational', // conversational, concise, academic
+    openaiApiKey: '', // Stored OpenAI API key
   },
   settings: {
     autoOpenAIPanel: true, // Automatically open AI panel when text is selected
@@ -29,6 +30,9 @@ export const userSlice = createSlice({
     },
     setAIResponseStyle: (state, action) => {
       state.preferences.aiResponseStyle = action.payload;
+    },
+    setOpenaiApiKey: (state, action) => {
+      state.preferences.openaiApiKey = action.payload;
     },
     setAutoOpenAIPanel: (state, action) => {
       state.settings.autoOpenAIPanel = action.payload;
@@ -68,6 +72,7 @@ export const {
   setDefaultScale,
   setFontSizePDF,
   setAIResponseStyle,
+  setOpenaiApiKey,
   setAutoOpenAIPanel,
   setSmoothScrolling,
   setConfirmBeforeClosing,

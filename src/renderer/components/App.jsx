@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setActiveDocument, clearActiveDocument } from '../../state/slices/chatSlice';
 import { addOrUpdateRecentDocument } from '../../state/slices/pdfSlice';
+import { setOpenaiApiKey } from '../../state/slices/userSlice';
 import LandingPage from './LandingPage';
 import PDFViewer from './PDFViewer';
 import AIPanel from './AIPanel';
+import ApiKeyConfig from './ApiKeyConfig';
 
 const App = () => {
   const [pdfPath, setPdfPath] = useState(null);
@@ -23,6 +25,48 @@ const App = () => {
   
   // Get Redux sessions to check if AI panel should be shown
   const reduxSessions = useSelector(state => state.chat.sessions);
+  
+  // Get stored API key from Redux
+  const storedApiKey = useSelector(state => state.user.preferences.openaiApiKey);
+  
+  // Load API key from persistent storage on startup
+  useEffect(() => {
+    const loadApiKey = async () => {
+      try {
+        if (window.electron && window.electron.getApiKey) {
+          const persistedApiKey = await window.electron.getApiKey();
+          if (persistedApiKey && persistedApiKey !== storedApiKey) {
+            // Update Redux store with the persisted API key
+            dispatch(setOpenaiApiKey(persistedApiKey));
+            console.log('Loaded API key from persistent storage');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading API key from persistent storage:', error);
+      }
+    };
+    
+    loadApiKey();
+  }, []); // Only run once on component mount
+  
+  // Send stored API key to main process when it changes (but not on initial load)
+  useEffect(() => {
+    const updateApiKey = async () => {
+      if (storedApiKey && window.electron && window.electron.setApiKey) {
+        try {
+          await window.electron.setApiKey(storedApiKey);
+          console.log('Updated AI service with API key change');
+        } catch (error) {
+          console.error('Error updating API key:', error);
+        }
+      }
+    };
+    
+    // Skip the initial empty value
+    if (storedApiKey) {
+      updateApiKey();
+    }
+  }, [storedApiKey]); // Run when storedApiKey changes
   
   // Auto-show AI panel when Redux sessions have content (for recent documents)
   useEffect(() => {
@@ -348,8 +392,10 @@ const App = () => {
               display: 'flex',
               alignItems: 'center',
               marginLeft: 'auto',
-              gap: '8px'
+              gap: '12px'
             }}>
+              <ApiKeyConfig />
+              
               <span style={{
                 color: 'white',
                 fontSize: '0.95rem',

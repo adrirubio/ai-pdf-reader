@@ -62,6 +62,10 @@ async function initializeStore() {
     const Store = require('electron-store');
     store = new Store({
       schema: {
+        openaiApiKey: {
+          type: 'string',
+          default: ''
+        },
         recentDocuments: {
           type: 'array',
           default: [],
@@ -134,6 +138,17 @@ app.whenReady().then(async () => {
 
 function setupHandlers() {
   console.log("Setting up IPC handlers...");
+  
+  // Initialize AI service with stored API key
+  try {
+    const storedApiKey = store.get('openaiApiKey', '');
+    if (storedApiKey && aiService && typeof aiService.updateApiKey === 'function') {
+      aiService.updateApiKey(storedApiKey);
+      console.log('Initialized AI service with stored API key from database');
+    }
+  } catch (error) {
+    console.error('Error initializing AI service with stored API key:', error);
+  }
   
   // Handle file open dialog
   ipcMain.handle('dialog:openFile', async () => {
@@ -324,6 +339,35 @@ function setupHandlers() {
     // This could involve calling a method in aiService or a new configuration service.
     // This is related to "AI preference settings UI" in Week 3, Task 3 for AIPanel.jsx
     return { status: "Preferences received (placeholder for ai:setPreferences)" };
+  });
+
+  ipcMain.handle('ai:setApiKey', async (event, apiKey) => {
+    console.log('IPC main received ai:setApiKey');
+    try {
+      // Save to persistent store
+      store.set('openaiApiKey', apiKey || '');
+      console.log('API key saved to persistent store');
+      
+      // Update the AI service with the new API key
+      if (aiService && typeof aiService.updateApiKey === 'function') {
+        aiService.updateApiKey(apiKey);
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting API key:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('ai:getApiKey', async () => {
+    try {
+      const apiKey = store.get('openaiApiKey', '');
+      console.log('Retrieved API key from persistent store:', apiKey ? 'API key exists' : 'No API key found');
+      return apiKey;
+    } catch (error) {
+      console.error('Error getting API key:', error);
+      return '';
+    }
   });
   
   // Add handlers for recent documents and document-specific data

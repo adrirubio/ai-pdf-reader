@@ -77,6 +77,8 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('ai:chat-error', listener);
   },
   aiSetPreferences: (preferences) => ipcRenderer.invoke('ai:setPreferences', preferences),
+  setApiKey: (apiKey) => ipcRenderer.invoke('ai:setApiKey', apiKey),
+  getApiKey: () => ipcRenderer.invoke('ai:getApiKey'),
   removeAllListenersForStream: (channelBasename) => {
     console.warn(`Preload: removeAllListenersForStream for ${channelBasename} called (conceptual).`);
   },
