@@ -28,6 +28,12 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
   const containerRef = useRef(null);
   const tooltipRef = useRef(null);
   const selectedTextRef = useRef('');
+  const pdfContentRef = useRef(null);
+  
+  // Refs for keyboard navigation to access current values
+  const pdfDocumentRef = useRef(null);
+  const currentPageRef = useRef(1);
+  const totalPagesRef = useRef(0);
 
   // Load highlights from persistent storage when filePath changes
   useEffect(() => {
@@ -128,6 +134,11 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     setPageInputValue('');
     setPageInputError('');
     
+    // Reset refs as well
+    pdfDocumentRef.current = null;
+    currentPageRef.current = 1;
+    totalPagesRef.current = 0;
+    
     // Use validFilePath from component props validation
     if (!validFilePath) {
       console.log('No valid filePath for loading PDF document');
@@ -204,26 +215,41 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
           setPdfDocument(document);
           setTotalPages(document.numPages);
           
+          // Update refs for keyboard navigation
+          pdfDocumentRef.current = document;
+          totalPagesRef.current = document.numPages;
+          
           // Load last viewed page if not already loaded
           if (!initialPageLoaded && validFilePath) {
             try {
               const lastPage = await window.electron.getLastViewedPage(validFilePath);
               if (lastPage && lastPage > 1 && lastPage <= document.numPages) {
                 setCurrentPage(lastPage);
+                currentPageRef.current = lastPage;
                 console.log(`Restored last viewed page: ${lastPage}`);
               } else {
                 setCurrentPage(1);
+                currentPageRef.current = 1;
               }
             } catch (e) {
               console.error('Failed to load last viewed page:', e);
               setCurrentPage(1);
+              currentPageRef.current = 1;
             }
             setInitialPageLoaded(true);
           } else {
             setCurrentPage(1);
+            currentPageRef.current = 1;
           }
           
           setLoadingStatus('');
+
+          // Auto-focus the PDF content container for keyboard navigation
+          setTimeout(() => {
+            if (pdfContentRef.current) {
+              pdfContentRef.current.focus();
+            }
+          }, 100);
 
           // Extract full text
           if (onFullTextExtracted) {
@@ -257,8 +283,19 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     loadPdf();
   }, [validFilePath, onFullTextExtracted]);
 
-  // Save current page when it changes
+  // Update refs when state changes
   useEffect(() => {
+    pdfDocumentRef.current = pdfDocument;
+  }, [pdfDocument]);
+
+  useEffect(() => {
+    totalPagesRef.current = totalPages;
+  }, [totalPages]);
+
+  // Update ref when currentPage changes and save current page
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+    
     if (!validFilePath || !initialPageLoaded) return;
     
     const savePageNumber = async () => {
@@ -687,6 +724,58 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     }
   }));
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Only handle keys when not typing in an input field
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Only handle navigation if we have a PDF loaded - use refs for current values
+      if (!pdfDocumentRef.current || totalPagesRef.current === 0) {
+        return;
+      }
+
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowDown':
+        case 'PageUp':
+          event.preventDefault();
+          if (currentPageRef.current > 1) {
+            setCurrentPage(currentPageRef.current - 1);
+          }
+          break;
+        case 'ArrowRight':
+        case 'ArrowUp':
+        case 'PageDown':
+          event.preventDefault();
+          if (currentPageRef.current < totalPagesRef.current) {
+            setCurrentPage(currentPageRef.current + 1);
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    // Add event listener to the PDF content container
+    const pdfElement = pdfContentRef.current;
+    if (pdfElement) {
+      pdfElement.addEventListener('keydown', handleKeyDown);
+      // Auto-focus the PDF container when PDF loads
+      if (pdfDocumentRef.current) {
+        pdfElement.focus();
+      }
+    }
+
+    return () => {
+      if (pdfElement) {
+        pdfElement.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+  }, [pdfDocument]); // Re-run when PDF document changes to auto-focus
+
   // Effect to clear active highlight when component unmounts or relevant dependencies change
   useEffect(() => {
     return () => {
@@ -961,17 +1050,21 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
       )}
       
       {/* PDF Content */}
-      <div style={{ 
-        flex: 1, 
-        overflow: 'auto',
-        backgroundColor: '#0c1821',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        padding: '20px',
-        position: 'relative',
-        ...pdfContentStyle,
-      }}>
+      <div 
+        ref={pdfContentRef}
+        tabIndex={0}
+        style={{ 
+          flex: 1, 
+          overflow: 'auto',
+          backgroundColor: '#0c1821',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          padding: '20px',
+          position: 'relative',
+          outline: 'none', // Remove focus outline for better visual experience
+          ...pdfContentStyle,
+        }}>
         {loading && !pdfDocument ? (
           <div style={{ 
             padding: '30px', 
