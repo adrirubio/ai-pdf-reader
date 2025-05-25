@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setActiveDocument, clearActiveDocument } from '../../state/slices/chatSlice';
 import { addOrUpdateRecentDocument } from '../../state/slices/pdfSlice';
 import LandingPage from './LandingPage';
@@ -16,9 +16,26 @@ const App = () => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [newChatCount, setNewChatCount] = useState(0);
   const [fullPdfText, setFullPdfText] = useState('');
+  const [userClosedPanel, setUserClosedPanel] = useState(false);
   const aiPanelRef = useRef(null);
   const pdfViewerRef = useRef(null);
   const dispatch = useDispatch();
+  
+  // Get Redux sessions to check if AI panel should be shown
+  const reduxSessions = useSelector(state => state.chat.sessions);
+  
+  // Auto-show AI panel when Redux sessions have content (for recent documents)
+  useEffect(() => {
+    if (reduxSessions && reduxSessions.length > 0 && !showLanding && !userClosedPanel) {
+      // Check if any session has messages
+      const hasMessages = reduxSessions.some(session => 
+        session.messages && session.messages.length > 0
+      );
+      if (hasMessages && !showAIPanel) {
+        setShowAIPanel(true);
+      }
+    }
+  }, [reduxSessions, showLanding, showAIPanel, userClosedPanel]);
   
   // Handle app:before-quit event
   useEffect(() => {
@@ -54,6 +71,7 @@ const App = () => {
 
   const handleNewChat = () => {
     setShowAIPanel(true);
+    setUserClosedPanel(false); // Reset the close flag when opening new chat
     setSelectedText('');
     setSelectedStyle('simple');
     setSelectedLocation(null);
@@ -222,6 +240,7 @@ const App = () => {
 
   const handleCloseAIPanel = () => {
     setShowAIPanel(false);
+    setUserClosedPanel(true); // Track that user manually closed the panel
   };
 
   const handleGoToHighlight = (locationToScrollTo) => {

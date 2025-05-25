@@ -108,7 +108,8 @@ async function initializeStore() {
                   }
                 }
               },
-              lastViewedPage: { type: 'number', default: 1 }
+              lastViewedPage: { type: 'number', default: 1 },
+              lastActiveChatIndex: { type: 'number', default: 0 }
             }
           }
         }
@@ -535,6 +536,62 @@ function setupHandlers() {
       return true;
     } catch (error) {
       console.error('Error in document:saveLastViewedPage:', error);
+      return false;
+    }
+  });
+  
+  ipcMain.handle('document:getLastActiveChatIndex', async (event, filePath) => {
+    try {
+      let pathString;
+      
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      if (!pathString || pathString.trim() === '') {
+        return 0;
+      }
+      
+      // Sanitize path for use as object key
+      const sanitizedPath = pathString.replace(/[.]/g, '_');
+      
+      // Get the last active chat index for this document
+      const docData = store.get(`documentSpecificData.${sanitizedPath}`, {});
+      return docData.lastActiveChatIndex || 0;
+    } catch (error) {
+      console.error('Error in document:getLastActiveChatIndex:', error);
+      return 0;
+    }
+  });
+  
+  ipcMain.handle('document:saveLastActiveChatIndex', async (event, filePath, chatIndex) => {
+    try {
+      let pathString;
+      
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      if (!pathString || pathString.trim() === '') {
+        return false;
+      }
+      
+      // Sanitize path for use as object key
+      const sanitizedPath = pathString.replace(/[.]/g, '_');
+      
+      // Save the last active chat index
+      store.set(`documentSpecificData.${sanitizedPath}.lastActiveChatIndex`, chatIndex);
+      return true;
+    } catch (error) {
+      console.error('Error in document:saveLastActiveChatIndex:', error);
       return false;
     }
   });

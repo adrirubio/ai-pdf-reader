@@ -369,12 +369,8 @@ const LandingPage = ({ onOpenPDF }) => {
                       pathToUse = null; // Will cause file dialog to open
                     }
                     
-                    if (pathToUse) {
-                      console.log('Opening document with path:', pathToUse);
-                      dispatch(setPdfPath(pathToUse));
-                    }
-                    
                     // Always pass a clean value (string or null)
+                    // Note: onOpenPDF will handle all state management including Redux updates
                     onOpenPDF(pathToUse);
                   }}
                   style={{

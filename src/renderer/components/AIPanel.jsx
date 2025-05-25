@@ -54,9 +54,46 @@ const AIPanel = forwardRef(({
     if (reduxSessions && reduxSessions.length > 0) {
       // Create a deep copy to avoid modifying frozen Redux state
       setSessions(JSON.parse(JSON.stringify(reduxSessions)));
-      setCurrentIdx(0); // Reset to first session
+      
+      // Load last active chat index if we have an active document
+      if (activeDocumentPath) {
+        const loadLastActiveChat = async () => {
+          try {
+            const lastActiveIndex = await window.electron.getLastActiveChatIndex(activeDocumentPath);
+            if (lastActiveIndex >= 0 && lastActiveIndex < reduxSessions.length) {
+              setCurrentIdx(lastActiveIndex);
+              console.log(`Restored last active chat index: ${lastActiveIndex}`);
+            } else {
+              setCurrentIdx(0);
+            }
+          } catch (error) {
+            console.error('Failed to load last active chat index:', error);
+            setCurrentIdx(0);
+          }
+        };
+        loadLastActiveChat();
+      } else {
+        setCurrentIdx(0); // Reset to first session if no active document
+      }
     }
-  }, [reduxSessions]);
+  }, [reduxSessions, activeDocumentPath]);
+
+  // Save current chat index when it changes
+  useEffect(() => {
+    if (!activeDocumentPath) return;
+    
+    const saveChatIndex = async () => {
+      try {
+        await window.electron.saveLastActiveChatIndex(activeDocumentPath, currentIdx);
+      } catch (error) {
+        console.error('Failed to save last active chat index:', error);
+      }
+    };
+    
+    // Debounce save to avoid excessive writes
+    const timeoutId = setTimeout(saveChatIndex, 300);
+    return () => clearTimeout(timeoutId);
+  }, [currentIdx, activeDocumentPath]);
 
   // --- Callbacks for EXPLAIN stream ---
   const handleExplainChunk = useCallback((chunk) => {
@@ -262,7 +299,8 @@ const AIPanel = forwardRef(({
             type: typeof msg.type === 'string' ? msg.type : 'user',
             content: typeof msg.content === 'string' ? msg.content : String(msg.content || ''),
             timestamp: msg.timestamp || new Date().toISOString(),
-            isError: !!msg.isError
+            isError: !!msg.isError,
+            action: msg.action || undefined
           })) : []
         }));
         
@@ -564,6 +602,7 @@ const AIPanel = forwardRef(({
     if (!customPrompt.trim() || !lastSelectedText) return;
     generateInitialExplanation(lastSelectedText, customPrompt);
     setCustomPrompt(''); // Clear the input field after submission
+    setShowCustomPrompt(false); // Hide the custom prompt mode after submission
   };
 
   // Format timestamp to readable time
@@ -675,7 +714,8 @@ const AIPanel = forwardRef(({
                 type: typeof msg.type === 'string' ? msg.type : 'user',
                 content: typeof msg.content === 'string' ? msg.content : String(msg.content || ''),
                 timestamp: msg.timestamp || new Date().toISOString(),
-                isError: !!msg.isError
+                isError: !!msg.isError,
+                action: msg.action || undefined
               };
             });
           } else {
@@ -1171,9 +1211,30 @@ const AIPanel = forwardRef(({
         background: 'rgba(15, 32, 39, 0.95)',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',
       }}>
-        {showCustomPrompt && lastSelectedText && (
+        {(showCustomPrompt && lastSelectedText) && (
           <button 
-            onClick={onGoToHighlight}
+            onClick={() => {
+              if (selectedLocation) {
+                // Use the current selected location if available
+                onGoToHighlight(selectedLocation);
+              } else if (sessions[currentIdx]?.highlightId) {
+                // Find the highlight location from the session's messages
+                const currentSession = sessions[currentIdx];
+                const highlightMessage = currentSession.messages.find(msg => 
+                  msg.type === 'user' && 
+                  msg.action && 
+                  msg.action.type === 'goToHighlight' && 
+                  msg.action.location
+                );
+                if (highlightMessage && highlightMessage.action.location) {
+                  onGoToHighlight(highlightMessage.action.location);
+                } else {
+                  console.warn('Could not find highlight location for session with highlightId:', currentSession.highlightId);
+                }
+              } else {
+                onGoToHighlight();
+              }
+            }}
             style={{
               background: 'rgba(255, 255, 255, 0.1)',
               color: 'white',

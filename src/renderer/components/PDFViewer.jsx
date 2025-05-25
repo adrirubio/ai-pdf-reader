@@ -23,6 +23,8 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     x: 0,
     y: 0
   });
+  const [pageInputValue, setPageInputValue] = useState('');
+  const [pageInputError, setPageInputError] = useState('');
   const containerRef = useRef(null);
   const tooltipRef = useRef(null);
   const selectedTextRef = useRef('');
@@ -110,12 +112,26 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
 
   // Load PDF document when filePath changes
   useEffect(() => {
-    // Reset initial page loaded flag when file changes
+    // Force complete state reset - using functional updates to ensure immediate state changes
     setInitialPageLoaded(false);
+    setPdfDocument(null);
+    setCurrentPage(1);
+    setTotalPages(0);
+    setScale(1.5);
+    setLoading(false);
+    setError(null);
+    setLoadingStatus('');
+    setPageRenderKey(prev => prev + 1);
+    setPersistentHighlights([]);
+    setActiveHighlightId(null);
+    setSelectionTooltip({ visible: false, text: '', x: 0, y: 0 });
+    setPageInputValue('');
+    setPageInputError('');
     
     // Use validFilePath from component props validation
     if (!validFilePath) {
       console.log('No valid filePath for loading PDF document');
+      setLoading(false); // Ensure loading is false if no file
       return;
     }
     
@@ -127,9 +143,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     
     const loadPdf = async () => {
       setLoading(true);
-      setError(null);
       setLoadingStatus('Starting PDF load...');
-      setPersistentHighlights([]); // Clear highlights for new PDF
       if (onFullTextExtracted) { // Clear any previous full text
         onFullTextExtracted('');
       }
@@ -245,7 +259,7 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
 
   // Save current page when it changes
   useEffect(() => {
-    if (!validFilePath || currentPage === 1 || !initialPageLoaded) return;
+    if (!validFilePath || !initialPageLoaded) return;
     
     const savePageNumber = async () => {
       try {
@@ -576,6 +590,26 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
     }
   };
 
+  const goToPage = () => {
+    const pageNumber = parseInt(pageInputValue, 10);
+    
+    if (isNaN(pageNumber) || pageNumber < 1 || pageNumber > totalPages) {
+      setPageInputError(`Page ${pageInputValue} doesn't exist. Valid range: 1-${totalPages}`);
+      setTimeout(() => setPageInputError(''), 3000);
+      return;
+    }
+    
+    setCurrentPage(pageNumber);
+    setPageInputValue('');
+    setPageInputError('');
+  };
+
+  const handlePageInputKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      goToPage();
+    }
+  };
+
   // Expose scrollToHighlight method via ref
   useImperativeHandle(ref, () => ({
     scrollToHighlight: (locationData) => {
@@ -615,9 +649,41 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
       }
     },
     removeHighlight: (highlightIdToRemove) => {
-      setPersistentHighlights(currentHighlights => 
-        currentHighlights.filter(h => h.id !== highlightIdToRemove)
-      );
+      console.log('PDFViewer: Removing highlight with ID:', highlightIdToRemove);
+      setPersistentHighlights(currentHighlights => {
+        const updatedHighlights = currentHighlights.filter(h => h.id !== highlightIdToRemove);
+        console.log(`PDFViewer: Filtered highlights from ${currentHighlights.length} to ${updatedHighlights.length}`);
+        
+        // Save updated highlights to persistent storage immediately
+        if (validFilePath && updatedHighlights.length !== currentHighlights.length) {
+          console.log('PDFViewer: Saving updated highlights to storage after removal');
+          const saveUpdatedHighlights = async () => {
+            try {
+              const cleanHighlights = updatedHighlights.map(highlight => ({
+                id: String(highlight.id),
+                pageNumber: highlight.pageNumber,
+                text: highlight.text,
+                rectsOnPage: highlight.rectsOnPage.map(rect => ({
+                  top: rect.top,
+                  left: rect.left,
+                  width: rect.width,
+                  height: rect.height
+                }))
+              }));
+              
+              await window.electron.saveDocumentHighlights(validFilePath, cleanHighlights);
+              console.log(`PDFViewer: Saved ${cleanHighlights.length} highlights after removing highlight ${highlightIdToRemove}`);
+            } catch (e) {
+              console.error("PDFViewer: Failed to save highlights after removal", e);
+            }
+          };
+          
+          // Save immediately without debounce since this is a removal
+          saveUpdatedHighlights();
+        }
+        
+        return updatedHighlights;
+      });
     }
   }));
 
@@ -648,6 +714,33 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Add CSS for placeholder styling */}
+      <style>
+        {`
+          input[type="number"]::-webkit-outer-spin-button,
+          input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+          }
+          input[type="number"] {
+            -moz-appearance: textfield;
+          }
+          input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+            opacity: 1;
+          }
+          input::-webkit-input-placeholder {
+            color: rgba(255, 255, 255, 0.5);
+          }
+          input::-moz-placeholder {
+            color: rgba(255, 255, 255, 0.5);
+            opacity: 1;
+          }
+          input:-ms-input-placeholder {
+            color: rgba(255, 255, 255, 0.5);
+          }
+        `}
+      </style>
       {/* PDF Controls */}
       <div style={{ 
         padding: '10px 15px', 
@@ -712,6 +805,83 @@ const PDFViewer = forwardRef(({ filePath, onTextSelected, pdfContentStyle = {}, 
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
+        
+        {/* Page input field and go button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+          <input
+            type="number"
+            value={pageInputValue}
+            onChange={(e) => setPageInputValue(e.target.value)}
+            onKeyPress={handlePageInputKeyPress}
+            placeholder="Page"
+            min="1"
+            max={totalPages}
+            style={{
+              width: '70px',
+              padding: '8px 10px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '8px',
+              color: 'white',
+              fontSize: '0.9rem',
+              textAlign: 'center',
+              outline: 'none',
+              transition: 'all 0.2s ease',
+            }}
+            onFocus={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.15)';
+              e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+            }}
+            onBlur={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            }}
+            disabled={loading || !totalPages}
+          />
+          <button
+            onClick={goToPage}
+            disabled={loading || !totalPages || !pageInputValue}
+            style={{
+              padding: '8px 12px',
+              cursor: (!loading && totalPages && pageInputValue) ? 'pointer' : 'not-allowed',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '8px',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: (!loading && totalPages && pageInputValue) ? 1 : 0.5,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="7" y1="17" x2="17" y2="7"></line>
+              <polyline points="7 7 17 7 17 17"></polyline>
+            </svg>
+          </button>
+          
+          {/* Error message */}
+          {pageInputError && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '100%',
+              marginLeft: '10px',
+              transform: 'translateY(-50%)',
+              padding: '8px 12px',
+              background: 'rgba(178, 34, 34, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '8px',
+              color: 'white',
+              fontSize: '0.8rem',
+              whiteSpace: 'nowrap',
+              zIndex: 1000,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            }}>
+              {pageInputError}
+            </div>
+          )}
+        </div>
         
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button 

@@ -252,6 +252,40 @@ contextBridge.exposeInMainWorld('electron', {
       return Promise.resolve(false);
     }
   },
+  getLastActiveChatIndex: (filePath) => {
+    try {
+      let pathString;
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      return ipcRenderer.invoke('document:getLastActiveChatIndex', pathString);
+    } catch (error) {
+      console.error('Error in getLastActiveChatIndex:', error);
+      return Promise.resolve(0);
+    }
+  },
+  saveLastActiveChatIndex: (filePath, chatIndex) => {
+    try {
+      let pathString;
+      if (typeof filePath === 'string') {
+        pathString = filePath;
+      } else if (filePath && typeof filePath === 'object' && filePath.path && typeof filePath.path === 'string') {
+        pathString = filePath.path;
+      } else {
+        pathString = String(filePath || '');
+      }
+      
+      return ipcRenderer.invoke('document:saveLastActiveChatIndex', pathString, chatIndex);
+    } catch (error) {
+      console.error('Error in saveLastActiveChatIndex:', error);
+      return Promise.resolve(false);
+    }
+  },
   saveDocumentHighlights: (filePath, highlights) => {
     try {
       console.log('preload.js saveDocumentHighlights called with:', typeof filePath);

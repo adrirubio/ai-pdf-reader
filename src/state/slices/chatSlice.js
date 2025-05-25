@@ -38,7 +38,8 @@ export const chatSlice = createSlice({
               type: msg.type || 'user',
               content: msg.content || '',
               timestamp: msg.timestamp || new Date().toISOString(),
-              isError: !!msg.isError
+              isError: !!msg.isError,
+              action: msg.action || undefined
             })) : []
           }));
           state.sessions = cleanSessions;
