@@ -12,11 +12,6 @@ An AI-enhanced PDF reader that explains highlighted text. Built with Electron an
 
 - **AI-Powered Text Analysis**
   - Highlight text to get instant AI explanations
-  - Multiple explanation styles:
-    - Summarize: Get concise summaries of complex text
-    - Explain Simply: Break down difficult concepts
-    - Funny Analogy: Understand through creative comparisons
-    - Expand: Get additional details and context
   - Custom instruction input for personalized explanations
 
 - **Advanced Chat Interface**
