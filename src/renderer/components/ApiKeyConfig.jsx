@@ -74,20 +74,35 @@ const ApiKeyConfig = () => {
       </button>
 
       {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'center',
-          zIndex: 1000,
-          backdropFilter: 'blur(4px)',
-          paddingTop: '120px',
-        }}>
+        <>
+          {/* Click handler for header area to close modal */}
+          <div 
+            onClick={handleCancel}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '65px',
+              zIndex: 999,
+              cursor: 'pointer',
+            }}
+          />
+          {/* Modal overlay - only covers content area */}
+          <div style={{
+            position: 'fixed',
+            top: '65px', // Start below the header
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            paddingTop: '55px', // Adjusted padding since we start at 65px
+          }}>
           <div style={{
             background: 'linear-gradient(135deg, #1f2937, #374151)',
             borderRadius: '12px',
@@ -237,6 +252,7 @@ const ApiKeyConfig = () => {
             </div>
           </div>
         </div>
+        </>
       )}
     </>
   );
