@@ -8,10 +8,14 @@
     "dev": "webpack --watch",
     "build": "webpack --mode production",
     "pack": "electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "keywords": [],
-  "author": "",
+  "author": {
+    "name": "Adrian Rubio-Punal",
+    "email": "adrian.rubio.punal@gmail.com"
+  },
   "license": "ISC",
   "dependencies": {
     "@reduxjs/toolkit": "^2.8.2",
