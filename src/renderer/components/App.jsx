@@ -280,6 +280,7 @@ const App = () => {
     setShowAIPanel(false);
     setShowLanding(true);
     setFullPdfText('');
+    setUserClosedPanel(false); // Reset the user closed panel flag
   };
 
   const handleCloseAIPanel = () => {
@@ -436,23 +437,19 @@ const App = () => {
             display: 'flex', 
             overflow: 'hidden',
             background: '#1a2a36',
-            position: 'relative',
           }}>
-            {/* Main PDF Viewer takes full width when AI panel is hidden */}
+            {/* Main PDF Viewer - width adjusts based on panel state */}
             <div style={{ 
               flex: 1, 
               overflow: 'hidden',
-              transition: 'width 0.3s ease',
+              transition: 'margin-right 0.3s ease',
+              marginRight: showAIPanel ? '600px' : '0',
             }}>
               <PDFViewer 
                 ref={pdfViewerRef}
                 filePath={typeof pdfPath === 'string' ? pdfPath : (pdfPath && typeof pdfPath === 'object' && pdfPath.path) ? pdfPath.path : String(pdfPath || '')} 
                 onTextSelected={handleTextSelected}
                 onFullTextExtracted={setFullPdfText}
-                pdfContentStyle={{
-                  marginLeft: showAIPanel ? '-600px' : '0',
-                  transition: 'margin-left 0.3s ease',
-                }}
                 setCustomPrompt={setCustomPrompt}
                 onClose={handleCloseAIPanel}
                 newChatCount={newChatCount}
@@ -461,18 +458,20 @@ const App = () => {
               />
             </div>
             
-            {/* AI Panel slides in from the right when text is selected */}
+            {/* AI Panel slides in from the right */}
             <div style={{
-              position: 'absolute',
-              top: 0,
+              position: 'fixed',
+              top: '65px', // Account for header height
               right: 0,
               bottom: 0,
-              width: '600px', // Increased from 500px to 600px for a wider panel
+              width: '600px',
               transform: showAIPanel ? 'translateX(0)' : 'translateX(100%)',
               transition: 'transform 0.3s ease-in-out',
+              background: 'linear-gradient(180deg, rgba(15, 32, 39, 0.98) 0%, rgba(32, 58, 67, 0.98) 100%)',
+              borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '-5px 0 15px rgba(0, 0, 0, 0.2)',
+              overflow: 'auto',
               zIndex: 100,
-              boxShadow: '-2px 0 20px rgba(0, 0, 0, 0.25)',
-              overflow: 'auto'
             }}>
               <AIPanel 
                 ref={aiPanelRef}
