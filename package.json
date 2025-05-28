@@ -42,6 +42,7 @@
   "build": {
     "appId": "com.yourname.ai-pdf-reader",
     "productName": "AI PDF Reader",
+    "icon": "ai-pdf-reader-logo.png",
     "files": [
       "dist/**/*",
       "src/main/**/*",
@@ -54,16 +55,19 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "ai-pdf-reader-logo.png",
       "target": [
         "dmg"
       ]
     },
     "win": {
+      "icon": "ai-pdf-reader-logo.png",
       "target": [
         "nsis"
       ]
     },
     "linux": {
+      "icon": "ai-pdf-reader-logo.png",
       "target": [
         "AppImage",
         "deb"

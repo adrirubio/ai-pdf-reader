@@ -75,7 +75,7 @@ const ApiKeyConfig = () => {
 
       {showModal && (
         <>
-          {/* Click handler for header area to close modal */}
+          {/* Invisible overlay to catch clicks outside the modal */}
           <div 
             onClick={handleCancel}
             style={{
@@ -83,27 +83,16 @@ const ApiKeyConfig = () => {
               top: 0,
               left: 0,
               right: 0,
-              height: '65px',
-              zIndex: 999,
-              cursor: 'pointer',
+              bottom: 0,
+              zIndex: 1000,
             }}
           />
-          {/* Modal overlay - only covers content area */}
+          {/* Modal box */}
           <div style={{
             position: 'fixed',
-            top: '65px', // Start below the header
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            zIndex: 1000,
-            backdropFilter: 'blur(4px)',
-            paddingTop: '55px', // Adjusted padding since we start at 65px
-          }}>
-          <div style={{
+            top: '120px',
+            left: '50%',
+            transform: 'translateX(-50%)',
             background: 'linear-gradient(135deg, #1f2937, #374151)',
             borderRadius: '12px',
             padding: '24px',
@@ -111,6 +100,7 @@ const ApiKeyConfig = () => {
             maxWidth: '500px',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+            zIndex: 1001,
           }}>
             <h3 style={{
               color: 'white',
@@ -251,7 +241,6 @@ const ApiKeyConfig = () => {
               </button>
             </div>
           </div>
-        </div>
         </>
       )}
     </>
