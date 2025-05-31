@@ -6,7 +6,7 @@
   "scripts": {
     "start": "ELECTRON_DISABLE_SANDBOX=1 ./node_modules/.bin/electron .",
     "dev": "webpack --watch",
-    "build": "webpack --mode production",
+    "build": "webpack --mode production && cp ai-pdf-reader-logo.png dist/",
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:linux": "npm run build && electron-builder --linux"

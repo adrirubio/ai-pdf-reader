@@ -35,6 +35,7 @@ function createWindow() {
     height: 800,
     backgroundColor: '#0f2027', // Set background color to avoid white flash
     show: false, // Don't show window until it's ready
+    icon: path.join(__dirname, '../../ai-pdf-reader-logo.png'), // Set window icon
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'), 
       contextIsolation: true,
