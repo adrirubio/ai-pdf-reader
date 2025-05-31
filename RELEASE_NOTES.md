@@ -7,6 +7,7 @@ This release introduces the application logo and fixes several UI issues, partic
 ## 📦 Available Packages
 
 - **AppImage**: Universal Linux package that runs on most distributions
+- **DEB**: Debian/Ubuntu package for easy installation with system integration
 
 ## ✨ What's New in v1.0.1
 
@@ -35,6 +36,18 @@ chmod +x AI.PDF.Reader-1.0.1.AppImage
 
 # Run it
 ./AI.PDF.Reader-1.0.1.AppImage
+```
+
+### DEB Package
+```bash
+# Download the DEB package
+wget https://github.com/adrirubio/ai-pdf-reader/releases/download/v1.0.1/ai-pdf-reader_1.0.1_amd64.deb
+
+# Install it
+sudo dpkg -i ai-pdf-reader_1.0.1_amd64.deb
+
+# Run it (after installation, you can run it from your applications menu or command line)
+ai-pdf-reader
 ```
 
 ## 🔧 Requirements
