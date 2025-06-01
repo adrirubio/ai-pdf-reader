@@ -78,7 +78,7 @@ npm start
 ```
 
 ### macOS
-macOS release coming soon! Currently, you can run from source:
+You can run from source:
 
 ```bash
 # Clone the repository
