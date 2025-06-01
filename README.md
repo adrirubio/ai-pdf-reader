@@ -34,6 +34,64 @@ An AI-enhanced PDF reader that explains highlighted text. Built with Electron an
   - Available for Windows, macOS, and Linux
   - Consistent experience across all platforms
 
+## 📋 Installation
+
+### Linux
+
+#### AppImage
+```bash
+# Download the AppImage
+wget https://github.com/adrirubio/ai-pdf-reader/releases/download/v1.0.1/AI.PDF.Reader-1.0.1.AppImage
+
+# Make it executable
+chmod +x AI.PDF.Reader-1.0.1.AppImage
+
+# Run it
+./AI.PDF.Reader-1.0.1.AppImage --no-sandbox
+```
+
+#### DEB Package
+```bash
+# Download the DEB package
+wget https://github.com/adrirubio/ai-pdf-reader/releases/download/v1.0.1/ai-pdf-reader_1.0.1_amd64.deb
+
+# Install it
+sudo dpkg -i ai-pdf-reader_1.0.1_amd64.deb
+
+# Run it (after installation, you can run it from your applications menu or command line)
+ai-pdf-reader
+```
+
+### Windows
+A Windows release is coming soon! In the meantime, you can run from source:
+
+```bash
+# Clone the repository
+git clone https://github.com/adrirubio/ai-pdf-reader.git
+cd ai-pdf-reader
+
+# Install dependencies
+npm install
+
+# Run the application
+npm start
+```
+
+### macOS
+macOS release coming soon! Currently, you can run from source:
+
+```bash
+# Clone the repository
+git clone https://github.com/adrirubio/ai-pdf-reader.git
+cd ai-pdf-reader
+
+# Install dependencies
+npm install
+
+# Run the application
+npm start
+```
+
 ## Technologies Used
 
 - Electron - Cross-platform desktop app framework
