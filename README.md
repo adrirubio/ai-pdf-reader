@@ -91,6 +91,7 @@ cd ai-pdf-reader
 npm install
 
 # Run the application
+npm run build
 npm start
 ```
 
