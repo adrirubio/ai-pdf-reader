@@ -2,7 +2,7 @@
 
 An AI-enhanced PDF reader that explains highlighted text. Built with Electron and React.
 
-<p align="center">
+<p align="left">
   <img src="ai-pdf-reader-logo.png"
        alt="AI PDF Reader Logo"
        width="250">
