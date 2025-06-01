@@ -59,6 +59,7 @@ wget https://github.com/adrirubio/ai-pdf-reader/releases/download/v1.0.1/ai-pdf-
 sudo dpkg -i ai-pdf-reader_1.0.1_amd64.deb
 
 # Run it (after installation, you can run it from your applications menu or command line)
+npm run build
 ai-pdf-reader
 ```
 
@@ -74,6 +75,7 @@ cd ai-pdf-reader
 npm install
 
 # Run the application
+npm run build
 npm start
 ```
 
