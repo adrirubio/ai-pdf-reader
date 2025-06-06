@@ -12,13 +12,6 @@ An AI-enhanced PDF reader that explains highlighted text. Built with Electron an
 
 [▶️ Click here to watch the demo video](https://github.com/adrirubio/ai-pdf-reader-demo/raw/main/demo-ai-pdf-reader.mp4)
 
-<!-- For blog or Markdown platforms that support embedded video (like MkDocs or GitHub Pages), you can also use this: -->
-
-<video controls width="600" style="margin-top: 1rem;">
-  <source src="https://github.com/adrirubio/ai-pdf-reader-demo/raw/main/demo-ai-pdf-reader.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
 ---
 
 ## Features
