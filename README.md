@@ -10,6 +10,8 @@ An AI-enhanced PDF reader that explains highlighted text. Built with Electron an
 
 ## 🎬 Demo Video
 
+![AI PDF Reader Demo](https://github.com/adrirubio/ai-pdf-reader-demo/raw/main/demo-ai-pdf-reader.gif)
+
 [▶️ Click here to watch the demo video](https://github.com/adrirubio/ai-pdf-reader-demo/raw/main/demo-ai-pdf-reader.mp4)
 
 ---
