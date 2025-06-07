@@ -54,6 +54,28 @@ Watch a quick preview below (GIF), or click the link to see the full demo video.
 
 ## 📋 Installation
 
+### Windows
+
+#### Installer (Recommended)
+1. Download the installer from the [latest release](https://github.com/adrirubio/ai-pdf-reader/releases/latest)
+2. Run `AI.PDF.Reader.Setup.1.0.1.exe`
+3. Follow the installation wizard
+4. Launch the app from your Start Menu or Desktop shortcut
+
+#### Run from Source
+```bash
+# Clone the repository
+git clone https://github.com/adrirubio/ai-pdf-reader.git
+cd ai-pdf-reader
+
+# Install dependencies
+npm install
+
+# Run the application
+npm run build
+npm start
+```
+
 ### Linux
 
 #### AppImage
@@ -77,24 +99,7 @@ wget https://github.com/adrirubio/ai-pdf-reader/releases/download/v1.0.1/ai-pdf-
 sudo dpkg -i ai-pdf-reader_1.0.1_amd64.deb
 
 # Run it (after installation, you can run it from your applications menu or command line)
-npm run build
 ai-pdf-reader
-```
-
-### Windows
-A Windows release is coming soon! In the meantime, you can run from source:
-
-```bash
-# Clone the repository
-git clone https://github.com/adrirubio/ai-pdf-reader.git
-cd ai-pdf-reader
-
-# Install dependencies
-npm install
-
-# Run the application
-npm run build
-npm start
 ```
 
 ### macOS
