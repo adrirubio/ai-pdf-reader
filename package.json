@@ -46,8 +46,11 @@
     "files": [
       "dist/**/*",
       "src/main/**/*",
-      "node_modules/**/*",
       "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@napi-rs/**/*"
     ],
     "directories": {
       "buildResources": "resources",

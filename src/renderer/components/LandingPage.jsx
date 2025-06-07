@@ -493,7 +493,7 @@ const LandingPage = ({ onOpenPDF }) => {
           transition: 'opacity 0.6s ease-out',
           transitionDelay: '0.6s',
         }}>
-          <p>AI PDF Reader v1.0.1 • Powered by PDF.js</p>
+          <p>AI PDF Reader v1.0.1 by Adrian Rubio • Powered by PDF.js</p>
         </div>
       </div>
       
